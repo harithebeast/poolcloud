@@ -2,7 +2,7 @@
 
 Link several Google Drive accounts and use them as one storage pool with a Google Drive–style UI. Files that do not fit in a single account are split into chunks across accounts and reassembled on download.
 
-> Status: **Phase 2 (API) complete**: auth, account linking, filesystem, streaming uploads/downloads, trash, share links, background jobs, metrics. The web UI (Phase 3) is still a skeleton. See [docs/PLAN.md](docs/PLAN.md) for the plan, risks and phases.
+> Status: **Phase 3 (UI) complete**: sign-in and first-run setup, a Drive-style file browser (grid/list, multi-select, drag and drop, preview, details), trash, sharing, the storage page with the pooled bar and Google account linking, dark mode. Hardening (Phase 4) is next. See [docs/PLAN.md](docs/PLAN.md) for the plan, risks and phases.
 
 ## Quickstart
 
@@ -13,6 +13,7 @@ node scripts/init-env.mjs   # creates .env with generated secrets (back up MASTE
 docker compose up --build   # web :3000, api :4000, worker, postgres, redis
 ```
 
+- Web app: http://localhost:3000 (the first visitor creates the admin account)
 - API health: http://localhost:4000/health/ready · metrics: `/metrics`
 - API reference (outside production): http://localhost:4000/docs
 - Linking real Google accounts: [docs/google-setup.md](docs/google-setup.md). To try things without Google, set `STORAGE_PROVIDER=fake` in `.env` (in-memory accounts, lost on restart; run no separate worker in this mode).
