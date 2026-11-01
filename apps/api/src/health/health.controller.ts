@@ -2,6 +2,7 @@ import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/co
 import { ApiTags } from '@nestjs/swagger';
 import type { Redis } from 'ioredis';
 import type { Pool } from 'pg';
+import { Public } from '../auth/auth.guard.js';
 import { REDIS } from '../common/redis.module.js';
 import { PG_POOL } from '../db/db.module.js';
 
@@ -17,6 +18,7 @@ export async function runCheck(fn: () => Promise<unknown>): Promise<Check> {
 }
 
 @ApiTags('health')
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(
