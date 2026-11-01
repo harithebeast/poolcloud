@@ -21,10 +21,10 @@ function open(key: Buffer, nonce: Buffer, data: Buffer, aad: string): Buffer {
   decipher.setAAD(Buffer.from(aad));
   decipher.setAuthTag(data.subarray(data.length - TAG_BYTES));
   try {
-    return Buffer.concat([
-      decipher.update(data.subarray(0, data.length - TAG_BYTES)),
-      decipher.final(),
-    ]);
+    const plain = decipher.update(data.subarray(0, data.length - TAG_BYTES));
+    const last = decipher.final(); // throws if the tag does not verify
+    // GCM never has trailing output; skip the copy of a whole chunk.
+    return last.length === 0 ? plain : Buffer.concat([plain, last]);
   } catch {
     // Deliberately generic: never reveal key material or partial plaintext.
     throw new IntegrityError('authentication failed: data was modified or the wrong key was used');
@@ -49,6 +49,27 @@ export function encryptChunk(dek: Buffer, plaintext: Buffer, aad: string) {
 
 export function decryptChunk(dek: Buffer, nonce: Buffer, data: Buffer, aad: string): Buffer {
   return open(dek, nonce, data, aad);
+}
+
+/**
+ * Encrypt one chunk as a stream, so memory stays flat however large the chunk is. Yields the
+ * ciphertext pieces and finally the 16-byte tag, i.e. exactly the `ciphertext | tag` that
+ * `decryptChunk` expects. The nonce is known up front (it is random, not derived from the data).
+ */
+export function encryptChunkStream(dek: Buffer, plaintext: AsyncIterable<Buffer>, aad: string) {
+  const nonce = randomBytes(NONCE_BYTES);
+  const cipher = createCipheriv('aes-256-gcm', dek, nonce);
+  cipher.setAAD(Buffer.from(aad));
+  async function* sealed(): AsyncGenerator<Buffer> {
+    for await (const piece of plaintext) {
+      const out = cipher.update(piece);
+      if (out.length > 0) yield out;
+    }
+    const last = cipher.final();
+    if (last.length > 0) yield last;
+    yield cipher.getAuthTag();
+  }
+  return { nonce, stream: sealed() };
 }
 
 export interface WrappedKey {

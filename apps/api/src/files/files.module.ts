@@ -20,6 +20,7 @@ import { FilesService } from './files.service.js';
 export function storageSettings(cfg: AppConfig): StorageSettings {
   return {
     chunkSize: cfg.CHUNK_SIZE_BYTES,
+    encryptedChunkSize: cfg.ENCRYPTED_CHUNK_BYTES,
     headroom: { percent: cfg.HEADROOM_PERCENT, minBytes: cfg.HEADROOM_MIN_BYTES },
     reservationTtlMs: 15 * 60_000,
     cleanupGraceMs: 60 * 60_000,

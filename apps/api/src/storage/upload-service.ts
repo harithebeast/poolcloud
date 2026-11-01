@@ -3,7 +3,7 @@ import { Readable } from 'node:stream';
 import { ByteReader } from './byte-reader.js';
 import {
   chunkAad,
-  encryptChunk,
+  encryptChunkStream,
   generateDataKey,
   GCM_TAG_BYTES,
   type KeyRing,
@@ -22,6 +22,12 @@ import type { AccountStore, CleanupOutbox, Reservation } from './stores.js';
 export interface StorageSettings {
   /** Size of each piece when a file is split (also the max GCM record size). */
   chunkSize: number;
+  /**
+   * Max size of one encrypted record. A record must be buffered whole when it is read back (the GCM
+   * tag has to verify before any plaintext is released), so this bounds download memory. Defaults to
+   * `chunkSize`.
+   */
+  encryptedChunkSize?: number;
   headroom: HeadroomPolicy;
   reservationTtlMs: number;
   /** How long a crashed upload's remote blobs survive before the cleanup job removes them. */
@@ -106,7 +112,10 @@ export class UploadService {
     const tag = dek ? GCM_TAG_BYTES : 0;
 
     // Fail before writing anything when the pool plainly cannot hold the file.
-    const overhead = tag * Math.ceil(req.size / settings.chunkSize);
+    const chunkSize = dek
+      ? Math.min(settings.chunkSize, settings.encryptedChunkSize ?? settings.chunkSize)
+      : settings.chunkSize;
+    const overhead = tag * Math.ceil(req.size / chunkSize);
     const pooled = await this.pooledAvailable(req.ownerId);
     if (pooled < req.size + overhead) throw new InsufficientCapacityError(req.size, pooled);
 
@@ -115,7 +124,7 @@ export class UploadService {
     let remaining = req.size;
     let index = 0;
     do {
-      const want = Math.min(settings.chunkSize, remaining) + tag;
+      const want = Math.min(chunkSize, remaining) + tag;
       // Near an account's limit the chunk shrinks to what fits instead of stranding the free space.
       const reservation =
         whole ?? (await this.reserve(req.ownerId, want, remaining === 0 ? tag : tag + 1));
@@ -174,12 +183,15 @@ export class UploadService {
       placed.push({ outboxId, chunk });
 
       if (dek) {
-        const plaintext = await reader.readExact(plainLength);
-        const sealed = encryptChunk(dek, plaintext, chunkAad(req.fileId, index, isLast));
-        hash.update(sealed.data);
+        // Encrypted as it streams: nothing is buffered, and the tag arrives last (ciphertext | tag).
+        const sealed = encryptChunkStream(
+          dek,
+          reader.take(plainLength),
+          chunkAad(req.fileId, index, isLast),
+        );
         nonce = sealed.nonce.toString('base64');
-        storedLength = sealed.data.length;
-        body = Readable.from([sealed.data], { objectMode: false });
+        storedLength = plainLength + GCM_TAG_BYTES;
+        body = Readable.from(hashing(sealed.stream, hash), { objectMode: false });
       } else {
         body = Readable.from(hashing(reader.take(plainLength), hash), { objectMode: false });
       }

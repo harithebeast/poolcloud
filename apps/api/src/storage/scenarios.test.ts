@@ -423,3 +423,22 @@ async function vi_waitFor(cond: () => boolean): Promise<void> {
   for (let i = 0; i < 200 && !cond(); i++) await new Promise((r) => setTimeout(r, 5));
   if (!cond()) throw new Error('condition not reached');
 }
+
+describe('encrypted record size', () => {
+  it('splits encrypted files into records no larger than encryptedChunkSize, plain files are unaffected', async () => {
+    const pool = makePool({
+      accounts: [{ limit: 10 * GB }],
+      chunkSize: 1000,
+      encryptedChunkSize: 300,
+    });
+    const data = patterned(1000, 4);
+
+    const encrypted = await pool.put(data, true);
+    expect(encrypted.chunks.length).toBe(4); // 300 + 300 + 300 + 100
+    expect(Math.max(...encrypted.chunks.map((c) => c.size))).toBeLessThanOrEqual(300 + 16);
+    expect(await read(pool, encrypted)).toEqual(data);
+
+    const plain = await pool.put(data, false);
+    expect(plain.chunks).toHaveLength(1);
+  });
+});

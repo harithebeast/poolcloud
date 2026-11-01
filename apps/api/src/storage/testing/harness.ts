@@ -12,6 +12,7 @@ export interface PoolOptions {
   /** One entry per linked account. */
   accounts: Array<{ limit: number; usage?: number }>;
   chunkSize: number;
+  encryptedChunkSize?: number;
   headroom?: HeadroomPolicy;
   cleanupGraceMs?: number;
 }
@@ -42,6 +43,7 @@ export function makePool(options: PoolOptions) {
   const keyRing = KeyRing.parse(`k1:${Buffer.alloc(32, 7).toString('base64')}`);
   const settings = {
     chunkSize: options.chunkSize,
+    encryptedChunkSize: options.encryptedChunkSize,
     headroom: options.headroom ?? NO_HEADROOM,
     reservationTtlMs: 60_000,
     cleanupGraceMs: options.cleanupGraceMs ?? 60_000,

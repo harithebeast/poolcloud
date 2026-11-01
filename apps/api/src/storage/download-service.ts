@@ -98,9 +98,7 @@ export class DownloadService {
     dek: Buffer,
     source: Readable,
   ): AsyncGenerator<Buffer> {
-    const parts: Buffer[] = [];
-    for await (const piece of source) parts.push(piece as Buffer);
-    const stored = Buffer.concat(parts);
+    const stored = await readInto(source, chunk);
     assertChunk(chunk, createHash('sha256').update(stored).digest('hex'), stored.length);
     if (!chunk.nonce) throw new IntegrityError(`chunk ${chunk.index} is missing its nonce`);
     yield decryptChunk(
@@ -118,4 +116,26 @@ function assertChunk(chunk: ChunkRecord, sha256: string, length: number): void {
       `chunk ${chunk.index} failed its integrity check (stored data was altered or truncated)`,
     );
   }
+}
+
+/**
+ * Collect one stored chunk into a single buffer sized from the database record, so a record costs
+ * one allocation instead of a piece list plus a concatenated copy. A source that sends more than
+ * recorded is cut short; the length/hash check then fails the chunk.
+ */
+async function readInto(source: Readable, chunk: ChunkRecord): Promise<Buffer> {
+  const buf = Buffer.allocUnsafe(chunk.size);
+  let filled = 0;
+  for await (const piece of source) {
+    const b = piece as Buffer;
+    if (filled + b.length > buf.length) {
+      source.destroy();
+      throw new IntegrityError(
+        `chunk ${chunk.index} failed its integrity check (stored data was altered or truncated)`,
+      );
+    }
+    b.copy(buf, filled);
+    filled += b.length;
+  }
+  return filled === buf.length ? buf : buf.subarray(0, filled);
 }

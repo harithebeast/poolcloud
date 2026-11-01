@@ -29,6 +29,7 @@ import { CleanupService } from '../storage/cleanup-service.js';
 import { KeyRing } from '../storage/crypto.js';
 import { DownloadService } from '../storage/download-service.js';
 import { FakeProvider } from '../storage/fake-provider.js';
+import type { StorageProvider } from '../storage/provider.js';
 import { PgAccountStore, PgBlobIndex, PgCleanupOutbox } from '../storage/pg-stores.js';
 import { QuotaSyncService } from '../storage/quota-sync.js';
 import { UploadService, type StorageSettings } from '../storage/upload-service.js';
@@ -45,6 +46,8 @@ export interface HarnessOptions {
   throttleMax?: number;
   /** Extra environment for loadConfig (e.g. METRICS_TOKEN). */
   env?: Record<string, string>;
+  /** Build the provider for the Nth linked account (default: in-memory FakeProvider). */
+  providerFor?: (index: number, spec: { limit: number; usage: number }) => StorageProvider;
 }
 
 export interface Session {
@@ -77,6 +80,8 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
     ...options.settings,
   };
 
+  // Typed as FakeProvider for the helpers most tests use; a custom `providerFor` (e.g. DiskProvider)
+  // is only used by checks that never call those helpers.
   const providers = new Map<string, FakeProvider>();
   const nextAccounts: Array<{ limit: number; usage: number }> = [];
   const registry = new ProviderRegistry({
@@ -85,7 +90,9 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
       let p = providers.get(c.accountId);
       if (!p) {
         const spec = nextAccounts.shift() ?? { limit: 1_000_000, usage: 0 };
-        p = new FakeProvider({ limit: spec.limit, initialUsage: spec.usage });
+        p = options.providerFor
+          ? (options.providerFor(providers.size, spec) as FakeProvider)
+          : new FakeProvider({ limit: spec.limit, initialUsage: spec.usage });
         providers.set(c.accountId, p);
       }
       return p;

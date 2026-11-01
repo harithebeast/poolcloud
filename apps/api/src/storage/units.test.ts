@@ -7,6 +7,7 @@ import {
   chunkAad,
   decryptChunk,
   encryptChunk,
+  encryptChunkStream,
   generateDataKey,
   GCM_TAG_BYTES,
 } from './crypto.js';
@@ -21,6 +22,12 @@ import {
 import { Semaphore, backoffDelay, retry } from './resilience.js';
 import { pieces } from './testing/harness.js';
 
+async function collectPieces(it: AsyncIterable<Buffer>): Promise<Buffer[]> {
+  const out: Buffer[] = [];
+  for await (const p of it) out.push(p);
+  return out;
+}
+
 describe('crypto', () => {
   const key = generateDataKey();
   const aad = chunkAad('file', 0, true);
@@ -30,6 +37,31 @@ describe('crypto', () => {
     const { nonce, data } = encryptChunk(key, plain, aad);
     expect(data.length).toBe(plain.length + GCM_TAG_BYTES);
     expect(decryptChunk(key, nonce, data, aad)).toEqual(plain);
+  });
+
+  it('streams: produces ciphertext|tag that decryptChunk accepts, without holding the whole chunk', async () => {
+    const plain = randomBytes(10_000);
+    const { nonce, stream } = encryptChunkStream(key, pieces(plain, 777), aad);
+    const parts: Buffer[] = [];
+    let largest = 0;
+    for await (const p of stream) {
+      parts.push(p);
+      largest = Math.max(largest, p.length);
+    }
+    expect(largest).toBeLessThanOrEqual(777); // emitted piece by piece
+    const stored = Buffer.concat(parts);
+    expect(stored.length).toBe(plain.length + GCM_TAG_BYTES);
+    expect(decryptChunk(key, nonce, stored, aad)).toEqual(plain);
+    expect(() => decryptChunk(key, nonce, stored, chunkAad('file', 1, true))).toThrow(
+      IntegrityError,
+    );
+  });
+
+  it('streams an empty chunk as just a tag', async () => {
+    const { nonce, stream } = encryptChunkStream(key, pieces(Buffer.alloc(0), 10), aad);
+    const stored = Buffer.concat(await collectPieces(stream));
+    expect(stored.length).toBe(GCM_TAG_BYTES);
+    expect(decryptChunk(key, nonce, stored, aad)).toEqual(Buffer.alloc(0));
   });
 
   it('uses a fresh nonce every time', () => {

@@ -12,7 +12,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node dist/db/migrate.js",
-    "test:ci": "vitest run --coverage"
+    "test:ci": "vitest run --coverage",
+    "test:memory": "vitest run --config vitest.memory.config.mts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
