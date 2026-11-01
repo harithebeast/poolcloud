@@ -1,0 +1,64 @@
+import type { AccountStatus } from '@pooldrive/shared';
+import type { HeadroomPolicy } from './placement.js';
+import type { Quota } from './provider.js';
+
+export interface AccountRecord {
+  id: string;
+  ownerId: string;
+  status: AccountStatus;
+  limit: number;
+  usage: number;
+  /** Active, unexpired reservations. */
+  reserved: number;
+}
+
+export interface Reservation {
+  id: string;
+  accountId: string;
+  bytes: number;
+}
+
+/**
+ * Account quota state plus in-flight reservations. `tryReserve` MUST be atomic per account:
+ * two concurrent callers can never reserve more than the account's available bytes.
+ * Every method is scoped by owner (directly or through the account id).
+ */
+export interface AccountStore {
+  list(ownerId: string): Promise<AccountRecord[]>;
+  tryReserve(
+    ownerId: string,
+    accountId: string,
+    bytes: number,
+    ttlMs: number,
+    policy: HeadroomPolicy,
+  ): Promise<Reservation | null>;
+  release(reservationId: string): Promise<void>;
+  /** Optimistic local bookkeeping between quota syncs. */
+  adjustUsage(accountId: string, delta: number): Promise<void>;
+  setQuota(accountId: string, quota: Quota): Promise<void>;
+  setStatus(accountId: string, status: AccountStatus, error?: string): Promise<void>;
+  /** Returns the new consecutive-failure count. */
+  recordFailure(accountId: string, message: string): Promise<number>;
+  resetFailures(accountId: string): Promise<void>;
+}
+
+export interface CleanupEntry {
+  id: string;
+  ownerId: string;
+  accountId: string;
+  remoteId: string;
+  reason: string;
+  attempts: number;
+}
+
+/** Remote blobs that must not outlive their upload attempt. Written BEFORE bytes are sent. */
+export interface CleanupOutbox {
+  /** `graceMs` delays first processing so an in-flight upload is not deleted from under itself. */
+  add(entry: Omit<CleanupEntry, 'id' | 'attempts'>, graceMs: number): Promise<string>;
+  /** Mark due immediately (upload aborted). */
+  expedite(ids: string[]): Promise<void>;
+  /** Forget entries (upload committed, or remote deleted). */
+  remove(ids: string[]): Promise<void>;
+  claimDue(limit: number): Promise<CleanupEntry[]>;
+  recordFailure(id: string, retryInMs: number): Promise<void>;
+}

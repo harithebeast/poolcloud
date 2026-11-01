@@ -16,6 +16,7 @@ env:
   # Non-secret values used only by tests.
   DATABASE_URL: postgres://pooldrive:pooldrive@localhost:5432/pooldrive
   REDIS_URL: redis://localhost:6379
+  TEST_DATABASE_URL: postgres://pooldrive:pooldrive@localhost:5432/pooldrive
 
 jobs:
   verify:
@@ -46,8 +47,8 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
-      - name: Unit and integration tests (coverage thresholds enforced per package)
-        run: pnpm test
+      - name: Unit and integration tests (fails below the coverage thresholds)
+        run: pnpm test:ci
       - run: pnpm build
       - name: Dependency audit
         run: pnpm audit --prod --audit-level high

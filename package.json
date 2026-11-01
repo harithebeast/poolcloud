@@ -13,7 +13,8 @@
     "typecheck": "pnpm --filter @pooldrive/shared build && pnpm -r typecheck",
     "test": "pnpm -r test",
     "db:generate": "pnpm --filter @pooldrive/api db:generate",
-    "db:migrate": "pnpm --filter @pooldrive/api db:migrate"
+    "db:migrate": "pnpm --filter @pooldrive/api db:migrate",
+    "test:ci": "pnpm -r --if-present test:ci"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
