@@ -14,8 +14,8 @@ docker compose up --build   # web :3000, api :4000, worker, postgres, redis
 ```
 
 - Web app: http://localhost:3000 (the first visitor creates the admin account)
-- API health: http://localhost:4000/health/ready · metrics: `/metrics`
-- API reference (outside production): http://localhost:4000/docs
+- API health: http://localhost:4400/health/ready · metrics: `/metrics`
+- API reference (outside production): http://localhost:4400/docs
 - Linking real Google accounts: [docs/google-setup.md](docs/google-setup.md). To try things without Google, set `STORAGE_PROVIDER=fake` in `.env` (in-memory accounts, lost on restart; run no separate worker in this mode).
 
 ## Development

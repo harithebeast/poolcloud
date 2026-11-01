@@ -8,7 +8,7 @@ Commands assume the repository root and a running `docker compose` stack.
 node scripts/init-env.mjs        # generates .env with random secrets; refuses to overwrite an existing one
 # edit .env: GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (see google-setup.md), or STORAGE_PROVIDER=fake to try it out
 docker compose up --build -d
-curl localhost:4000/health/ready  # {"status":"ok",...}
+curl localhost:4400/health/ready  # {"status":"ok",...}
 ```
 
 The first visitor to the web app creates the admin account. There is no public sign-up.
@@ -17,10 +17,10 @@ The first visitor to the web app creates the admin account. There is no public s
 
 | Check                | Command                                                                                |
 | -------------------- | -------------------------------------------------------------------------------------- |
-| API alive / ready    | `curl localhost:4000/health/live`, `curl localhost:4000/health/ready`                  |
+| API alive / ready    | `curl localhost:4400/health/live`, `curl localhost:4400/health/ready`                  |
 | Worker alive / ready | `docker compose exec worker wget -qO- localhost:4001/health/ready`                     |
 | Containers           | `docker compose ps`                                                                    |
-| Metrics              | `curl localhost:4000/metrics` (add `-H "Authorization: Bearer $METRICS_TOKEN"` if set) |
+| Metrics              | `curl localhost:4400/metrics` (add `-H "Authorization: Bearer $METRICS_TOKEN"` if set) |
 | Worker job results   | `docker compose logs worker --since 10m` (look for `job finished` / `job failed`)      |
 
 Useful metrics: `pooldrive_storage_accounts{status="DEGRADED"}` above zero means an account needs attention;

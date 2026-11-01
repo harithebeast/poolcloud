@@ -42,7 +42,7 @@ offers one-click re-authorise.
 3. **Authorised redirect URIs** -> add exactly:
 
    ```
-   http://localhost:4000/api/v1/accounts/google/callback
+   http://localhost:4400/api/v1/accounts/google/callback
    ```
 
    For a deployment, add `https://<your-api-host>/api/v1/accounts/google/callback` as well.

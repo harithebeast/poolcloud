@@ -3,7 +3,7 @@
  * large uploads and downloads stream without an extra hop. Cookies are sent with `credentials`,
  * and every state-changing request carries the per-session CSRF token.
  */
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4400/api/v1';
 
 let csrfToken = '';
 export const setCsrfToken = (t: string) => {

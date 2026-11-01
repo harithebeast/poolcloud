@@ -12,7 +12,7 @@ x-app-env: &app-env
   METRICS_TOKEN: ${METRICS_TOKEN:-}
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-  GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:4000/api/v1/accounts/google/callback}
+  GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:4400/api/v1/accounts/google/callback}
   CHUNK_SIZE_BYTES: ${CHUNK_SIZE_BYTES:-67108864}
   ENCRYPTED_CHUNK_BYTES: ${ENCRYPTED_CHUNK_BYTES:-16777216}
   HEADROOM_PERCENT: ${HEADROOM_PERCENT:-5}
@@ -85,7 +85,8 @@ services:
     mem_limit: 512m
     healthcheck:
       interval: 30s
-    ports: ['4000:4000']
+    # Host port 4400, not 4000: other tools (e.g. WSL) often occupy 4000 and browsers then hang.
+    ports: ['${API_HOST_PORT:-4400}:4000']
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -111,7 +112,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         # The browser calls the API directly; this address is baked into the web build.
-        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4000/api/v1}
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4400/api/v1}
     ports: ['3000:3000']
     environment:
       NODE_OPTIONS: --max-old-space-size=128
