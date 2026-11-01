@@ -1,0 +1,81 @@
+name: pooldrive
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: postgres://pooldrive:${POSTGRES_PASSWORD:?run node scripts/init-env.mjs}@postgres:5432/pooldrive
+  REDIS_URL: redis://redis:6379
+  SESSION_SECRET: ${SESSION_SECRET:?run node scripts/init-env.mjs}
+  MASTER_KEYS: ${MASTER_KEYS:?run node scripts/init-env.mjs}
+  WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+  STORAGE_PROVIDER: ${STORAGE_PROVIDER:-google}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:4000/api/v1/accounts/oauth/callback}
+  CHUNK_SIZE_BYTES: ${CHUNK_SIZE_BYTES:-67108864}
+  HEADROOM_PERCENT: ${HEADROOM_PERCENT:-2}
+  HEADROOM_MIN_BYTES: ${HEADROOM_MIN_BYTES:-100000000}
+  QUOTA_SYNC_INTERVAL_SECONDS: ${QUOTA_SYNC_INTERVAL_SECONDS:-300}
+  TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS:-30}
+  FEATURE_TOTP: ${FEATURE_TOTP:-false}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pooldrive
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run node scripts/init-env.mjs}
+      POSTGRES_DB: pooldrive
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pooldrive -d pooldrive']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    environment:
+      <<: *app-env
+      API_PORT: '4000'
+    ports: ['4000:4000']
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  worker:
+    build: { context: ., dockerfile: apps/worker/Dockerfile }
+    environment: *app-env
+    depends_on:
+      api: { condition: service_healthy }
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  web:
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    environment:
+      API_URL: http://api:4000
+    ports: ['3000:3000']
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
