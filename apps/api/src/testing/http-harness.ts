@@ -8,6 +8,8 @@ import { AlertsController } from '../alerts/alerts.controller.js';
 import { AccountHealth, AlertsService } from '../alerts/alerts.service.js';
 import { MaintenanceJobs } from '../jobs/maintenance.js';
 import { OrphanScanner } from '../storage/orphan-scanner.js';
+import { DrainService } from '../storage/drain-service.js';
+import { RemovalService } from '../accounts/removal.service.js';
 import { StorageController } from '../files/storage.controller.js';
 import { MetricsController } from '../metrics/metrics.controller.js';
 import { MetricsService } from '../metrics/metrics.service.js';
@@ -30,7 +32,12 @@ import { KeyRing } from '../storage/crypto.js';
 import { DownloadService } from '../storage/download-service.js';
 import { FakeProvider } from '../storage/fake-provider.js';
 import type { StorageProvider } from '../storage/provider.js';
-import { PgAccountStore, PgBlobIndex, PgCleanupOutbox } from '../storage/pg-stores.js';
+import {
+  PgAccountStore,
+  PgBlobIndex,
+  PgChunkStore,
+  PgCleanupOutbox,
+} from '../storage/pg-stores.js';
 import { QuotaSyncService } from '../storage/quota-sync.js';
 import { UploadService, type StorageSettings } from '../storage/upload-service.js';
 import { PublicSharesController, SharesController } from '../shares/shares.controller.js';
@@ -142,6 +149,21 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
     providers: registry.get,
     index: new PgBlobIndex(testDb.db),
   });
+  const drain = new DrainService({
+    accounts: store,
+    chunks: new PgChunkStore(testDb.db),
+    outbox,
+    providers: registry.get,
+    settings: { headroom: settings.headroom, reservationTtlMs: 60_000, cleanupGraceMs: 0 },
+  });
+  const removal = new RemovalService({
+    db: testDb.db,
+    accounts: store,
+    chunks: new PgChunkStore(testDb.db),
+    drain,
+    alerts,
+    headroom: settings.headroom,
+  });
   const jobs = new MaintenanceJobs({
     db: testDb.db,
     quotaSync,
@@ -150,6 +172,7 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
     auth,
     alerts,
     orphans,
+    drain,
     retentionDays: 30,
   });
 
@@ -171,6 +194,7 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
       { provide: FilesService, useValue: files },
       { provide: SharesService, useValue: shares },
       { provide: AlertsService, useValue: alerts },
+      { provide: RemovalService, useValue: removal },
       { provide: MetricsService, useValue: metrics },
       { provide: PgAccountStore, useValue: store },
       {
@@ -261,6 +285,8 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
     shares,
     alerts,
     jobs,
+    drain,
+    removal,
     orphans,
     quotaSync,
     store,

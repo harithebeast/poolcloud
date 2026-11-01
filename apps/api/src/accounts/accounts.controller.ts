@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -8,10 +20,16 @@ import { APP_CONFIG, type AppConfig } from '../config/config.module.js';
 import { Inject } from '@nestjs/common';
 import { AccountsService, InvalidLinkStateError } from './accounts.service.js';
 import { LinkError } from './link-backend.js';
+import { RemovalService } from './removal.service.js';
 
 const OAUTH_COOKIE = 'pd_oauth';
 const COOKIE_PATH = '/api/v1/accounts/google';
 const startBody = z.object({ accountId: z.uuid().optional() });
+const uuid = (raw: string) => {
+  const r = z.uuid().safeParse(raw);
+  if (!r.success) throw new BadRequestException('Invalid id');
+  return r.data;
+};
 
 /** Linking and inspecting storage accounts. Only admins manage the pool. */
 @ApiTags('accounts')
@@ -20,12 +38,34 @@ const startBody = z.object({ accountId: z.uuid().optional() });
 export class AccountsController {
   constructor(
     private readonly accounts: AccountsService,
+    private readonly removal: RemovalService,
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
   ) {}
 
   @Get()
-  list(@Req() req: AuthedRequest) {
-    return this.accounts.list(req.auth!.user.id);
+  async list(@Req() req: AuthedRequest) {
+    const accounts = await this.accounts.list(req.auth!.user.id);
+    // Accounts being removed report how much is left to move.
+    return Promise.all(
+      accounts.map(async (a) =>
+        a.status === 'DRAINING' ? { ...a, remaining: await this.removal.progress(a.id) } : a,
+      ),
+    );
+  }
+
+  /** Start removing an account: its files are moved to the others first, then it is disconnected. */
+  @Delete(':id')
+  @HttpCode(202)
+  async remove(@Req() req: AuthedRequest, @Param('id') id: string) {
+    await this.removal.start(req.auth!.user.id, uuid(id));
+    return { status: 'DRAINING' };
+  }
+
+  @Post(':id/cancel-removal')
+  @HttpCode(200)
+  async cancelRemoval(@Req() req: AuthedRequest, @Param('id') id: string) {
+    await this.removal.cancel(req.auth!.user.id, uuid(id));
+    return { status: 'HEALTHY' };
   }
 
   /** Returns the Google consent URL; the web app navigates the browser to it. */

@@ -1,6 +1,13 @@
 import { and, asc, eq, ilike, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../db/db.module.js';
-import { fileChunks, nodes, remoteCleanup, shareLinks, storageAccounts } from '../db/schema.js';
+import {
+  fileChunks,
+  nodes,
+  remoteCleanup,
+  shareLinks,
+  storageAccounts,
+  uploads,
+} from '../db/schema.js';
 
 export class NotFoundError extends Error {
   constructor(what = 'Item') {
@@ -346,6 +353,9 @@ export class FsService {
         await tx.delete(fileChunks).where(inArray(fileChunks.fileId, fileIds));
       }
       await tx.delete(shareLinks).where(inArray(shareLinks.nodeId, ids));
+      // Upload records (idempotency keys) point at the folder they targeted; they are only
+      // bookkeeping for retries, and the files they describe are being deleted with it.
+      await tx.delete(uploads).where(inArray(uploads.parentId, ids));
       await tx.delete(nodes).where(inArray(nodes.id, ids));
       return {
         files: fileIds.length,

@@ -5,6 +5,7 @@ import type { Db } from '../db/db.module.js';
 import { storageAccounts } from '../db/schema.js';
 import type { FsService } from '../fs/fs.service.js';
 import type { CleanupService } from '../storage/cleanup-service.js';
+import type { DrainService } from '../storage/drain-service.js';
 import type { OrphanScanner } from '../storage/orphan-scanner.js';
 import type { QuotaSyncService } from '../storage/quota-sync.js';
 
@@ -14,6 +15,7 @@ export const JOB_NAMES = [
   'trash-purge',
   'session-purge',
   'orphan-scan',
+  'drain',
 ] as const;
 export type JobName = (typeof JOB_NAMES)[number];
 
@@ -25,6 +27,8 @@ export function schedule(quotaSyncSeconds: number): Record<JobName, number> {
     'trash-purge': 3600,
     'session-purge': 3600,
     'orphan-scan': 24 * 3600,
+    // Moves files off accounts that are being removed; frequent so progress is visible.
+    drain: 30,
   };
 }
 
@@ -39,6 +43,7 @@ export class MaintenanceJobs {
       auth: Pick<AuthService, 'purgeExpired'>;
       alerts: AlertsService;
       orphans: OrphanScanner;
+      drain: DrainService;
       retentionDays: number;
       log?: (event: string, data?: Record<string, unknown>) => void;
     },
@@ -56,7 +61,40 @@ export class MaintenanceJobs {
         return this.deps.auth.purgeExpired();
       case 'orphan-scan':
         return this.orphanScan();
+      case 'drain':
+        return this.drainAccounts();
     }
+  }
+
+  /** Move pieces off accounts being removed, and tell the owner if progress is blocked. */
+  async drainAccounts() {
+    const results = await this.deps.drain.run();
+    for (const r of results) {
+      if (r.stuck) {
+        await this.deps.alerts.raise(
+          r.ownerId,
+          r.accountId,
+          'removal_stuck',
+          `Removing a Google account is paused: ${r.stuck}`,
+        );
+      } else {
+        await this.deps.alerts.resolveKind(r.ownerId, 'removal_stuck');
+      }
+      if (r.moved > 0 || r.finished) {
+        this.deps.log?.('account drain progress', {
+          accountId: r.accountId,
+          moved: r.moved,
+          remaining: r.remaining,
+          finished: r.finished,
+        });
+      }
+    }
+    return results.map(({ accountId, moved, remaining, finished }) => ({
+      accountId,
+      moved,
+      remaining,
+      finished,
+    }));
   }
 
   /** One failing owner or account must not stop the others. */

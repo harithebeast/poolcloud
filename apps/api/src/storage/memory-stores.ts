@@ -5,6 +5,8 @@ import type { Quota } from './provider.js';
 import type {
   AccountRecord,
   AccountStore,
+  ChunkRef,
+  ChunkStore,
   CleanupEntry,
   CleanupOutbox,
   Reservation,
@@ -39,6 +41,14 @@ export class MemoryAccountStore implements AccountStore {
     status?: AccountStatus;
   }): void {
     this.accounts.set(a.id, { status: 'HEALTHY', failures: 0, ...a });
+  }
+
+  listByStatus(status: AccountStatus): Promise<Array<{ id: string; ownerId: string }>> {
+    return Promise.resolve(
+      [...this.accounts.values()]
+        .filter((a) => a.status === status)
+        .map((a) => ({ id: a.id, ownerId: a.ownerId })),
+    );
   }
 
   getStatus(accountId: string): AccountStatus | undefined {
@@ -165,5 +175,51 @@ export class MemoryCleanupOutbox implements CleanupOutbox {
       e.dueAt = this.now() + retryInMs;
     }
     return Promise.resolve();
+  }
+}
+
+export class MemoryChunkStore implements ChunkStore {
+  private readonly rows: ChunkRef[] = [];
+
+  add(...chunks: ChunkRef[]): void {
+    this.rows.push(...chunks);
+  }
+
+  all(): ChunkRef[] {
+    return this.rows.map((r) => ({ ...r }));
+  }
+
+  /** Simulate a purge: the file's pieces disappear from the map. */
+  removeFile(fileId: string): void {
+    for (let i = this.rows.length - 1; i >= 0; i--)
+      if (this.rows[i]!.fileId === fileId) this.rows.splice(i, 1);
+  }
+
+  listOn(accountId: string, limit: number): Promise<ChunkRef[]> {
+    return Promise.resolve(
+      this.rows
+        .filter((r) => r.accountId === accountId)
+        .slice(0, limit)
+        .map((r) => ({ ...r })),
+    );
+  }
+
+  countOn(accountId: string): Promise<{ parts: number; bytes: number }> {
+    const on = this.rows.filter((r) => r.accountId === accountId);
+    return Promise.resolve({ parts: on.length, bytes: on.reduce((n, r) => n + r.size, 0) });
+  }
+
+  repoint(chunk: ChunkRef, to: { accountId: string; remoteId: string }): Promise<boolean> {
+    const row = this.rows.find(
+      (r) =>
+        r.fileId === chunk.fileId &&
+        r.index === chunk.index &&
+        r.accountId === chunk.accountId &&
+        r.remoteId === chunk.remoteId,
+    );
+    if (!row) return Promise.resolve(false);
+    row.accountId = to.accountId;
+    row.remoteId = to.remoteId;
+    return Promise.resolve(true);
   }
 }

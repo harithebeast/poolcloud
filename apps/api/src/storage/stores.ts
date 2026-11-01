@@ -40,6 +40,8 @@ export interface AccountStore {
   /** Returns the new consecutive-failure count. */
   recordFailure(accountId: string, message: string): Promise<number>;
   resetFailures(accountId: string): Promise<void>;
+  /** Accounts in a given state, across all owners (for background jobs). */
+  listByStatus(status: AccountStatus): Promise<Array<{ id: string; ownerId: string }>>;
 }
 
 export interface CleanupEntry {
@@ -61,4 +63,28 @@ export interface CleanupOutbox {
   remove(ids: string[]): Promise<void>;
   claimDue(limit: number): Promise<CleanupEntry[]>;
   recordFailure(id: string, retryInMs: number): Promise<void>;
+}
+
+/** One stored piece of a file, as recorded in the chunk map. */
+export interface ChunkRef {
+  ownerId: string;
+  fileId: string;
+  index: number;
+  accountId: string;
+  remoteId: string;
+  size: number;
+  sha256: string;
+  nonce: string | null;
+}
+
+/** The chunk map, from the point of view of moving pieces between accounts. */
+export interface ChunkStore {
+  /** Pieces currently stored on `accountId` (including those of trashed files). */
+  listOn(accountId: string, limit: number): Promise<ChunkRef[]>;
+  countOn(accountId: string): Promise<{ parts: number; bytes: number }>;
+  /**
+   * Point a piece at its new copy. Compare-and-swap on the old location: returns false if the piece
+   * was purged or already moved meanwhile, so a stale migration can never overwrite newer state.
+   */
+  repoint(chunk: ChunkRef, to: { accountId: string; remoteId: string }): Promise<boolean>;
 }

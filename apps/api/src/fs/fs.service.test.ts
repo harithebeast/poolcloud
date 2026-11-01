@@ -7,6 +7,7 @@ import {
   remoteCleanup,
   shareLinks,
   storageAccounts,
+  uploads,
   users,
 } from '../db/schema.js';
 import { createTestDb } from '../testing/test-db.js';
@@ -231,6 +232,25 @@ describe.skipIf(!url)('FsService (Postgres)', () => {
         .from(storageAccounts)
         .where(eq(storageAccounts.id, acct));
       expect(a!.quotaUsage).toBe(50);
+    });
+
+    it('can purge a folder that files were uploaded into (idempotency records must not block it)', async () => {
+      const folder = await fs.createFolder(owner, null, 'pg-uploaded-into');
+      await testDb.db.insert(uploads).values({
+        ownerId: owner,
+        idempotencyKey: `key-${randomUUID()}`,
+        parentId: folder.id,
+        name: 'x.bin',
+        size: 1,
+        state: 'done',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      await fs.trash(owner, folder.id);
+      await expect(fs.purge(owner, folder.id)).resolves.toBeDefined();
+      expect(await testDb.db.select().from(uploads).where(eq(uploads.parentId, folder.id))).toEqual(
+        [],
+      );
+      await expect(fs.get(owner, folder.id)).rejects.toBeInstanceOf(NotFoundError);
     });
 
     it('will not purge something that is not in the trash', async () => {

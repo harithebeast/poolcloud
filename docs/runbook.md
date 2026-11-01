@@ -111,3 +111,44 @@ pnpm --filter @pooldrive/web exec playwright install chromium   # once
 pnpm --filter @pooldrive/web test:e2e                          # journey + WCAG checks (axe) in light and dark
 docker compose -p pooldrive-e2e -f docker-compose.yml -f docker-compose.e2e.yml down -v
 ```
+
+## Removing a Google account
+
+Storage page, **Remove** on the account, confirm. What happens:
+
+1. The account becomes **Being removed**. Nothing new is stored on it, and every file keeps working.
+2. The worker moves its pieces to your other accounts (checking each one against its checksum), 25 at a time, every 30
+   seconds. The Storage page shows how many pieces are left.
+3. When it is empty it shows **Removed**. The old copies are deleted from that Google account by the cleanup job shortly
+   after (within about an hour; a delay is deliberate so downloads in progress can finish).
+4. Optional tidy-up in that Google account: revoke PoolDrive at <https://myaccount.google.com/permissions> and delete the empty
+   "PoolDrive (do not edit)" folder.
+
+If it says **paused** (an alert on the Storage page), the other accounts cannot take a piece: link another account or free
+space, and it resumes by itself. **Cancel removal** returns the account to service at any time. An offline account cannot be
+removed until it is re-authorised, because its files cannot be read. Check progress in the log:
+
+```sh
+docker compose logs worker --since 10m | grep -i drain
+```
+
+A removed account can be linked again later from the Storage page; it comes back as the same account.
+
+## Load testing
+
+`scripts/load-test.mjs` signs in, uploads many files at once, lists them, downloads each and compares checksums, then removes
+what it created. Use the fake-storage test stack (see "Verifying a release") or your own pool (it uses real quota while it runs).
+
+```sh
+API_URL=http://localhost:4100/api/v1 E2E_EMAIL=you@example.com E2E_PASSWORD=... \
+  FILES=300 SIZE_KB=128 CONCURRENCY=16 node scripts/load-test.mjs
+ENCRYPT=true FILES=100 SIZE_KB=512 CONCURRENCY=8 node scripts/load-test.mjs
+```
+
+Reference results from the author's PC (fake storage in Docker, API limited to 512 MB): 300 x 128 KB uploaded at 16 at a time
+with p50 about 190 ms and p95 about 1 s, 0 failures; downloads p50 about 60 ms; 100 x 512 KB encrypted p50 about 260 ms, 0
+failures. Every download matched its checksum. Your numbers will differ, and Google's own throughput will dominate with real
+accounts.
+
+The request limit per address is `RATE_LIMIT_PER_MINUTE` (default 1200). A burst above it gets `429 Too Many Requests` with a
+`Retry-After` header rather than an error; raise it only if you genuinely need more.

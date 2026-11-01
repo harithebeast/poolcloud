@@ -19,6 +19,14 @@ describe('loadConfig', () => {
     expect(cfg.TRASH_RETENTION_DAYS).toBe(30);
   });
 
+  it('has a generous default request limit that can be tuned but not set to something unusable', () => {
+    expect(loadConfig(base).RATE_LIMIT_PER_MINUTE).toBe(1200);
+    expect(loadConfig({ ...base, RATE_LIMIT_PER_MINUTE: '5000' }).RATE_LIMIT_PER_MINUTE).toBe(5000);
+    expect(() => loadConfig({ ...base, RATE_LIMIT_PER_MINUTE: '5' })).toThrow(
+      /RATE_LIMIT_PER_MINUTE/,
+    );
+  });
+
   it('rejects a short session secret and a malformed master key', () => {
     expect(() => loadConfig({ ...base, SESSION_SECRET: 'short' })).toThrow(/SESSION_SECRET/);
     expect(() => loadConfig({ ...base, MASTER_KEYS: 'nope' })).toThrow(/MASTER_KEYS/);

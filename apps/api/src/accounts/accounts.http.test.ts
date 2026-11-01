@@ -16,6 +16,7 @@ import { KeyRing } from '../storage/crypto.js';
 import { FakeProvider } from '../storage/fake-provider.js';
 import { createTestDb } from '../testing/test-db.js';
 import { AccountsController } from './accounts.controller.js';
+import { RemovalService } from './removal.service.js';
 import { AccountsService } from './accounts.service.js';
 import { FakeLinkBackend } from './link-backend.js';
 import { ProviderRegistry } from './provider-registry.js';
@@ -70,6 +71,7 @@ describe.skipIf(!url)('linking storage accounts over HTTP', () => {
       providers: [
         { provide: AuthService, useValue: auth },
         { provide: AccountsService, useValue: accounts },
+        { provide: RemovalService, useValue: {} }, // removal has its own tests
         { provide: LoginThrottle, useValue: new LoginThrottle(new MemoryCounterStore(), 100, 60) },
         { provide: APP_CONFIG, useValue: cfg },
         { provide: APP_GUARD, useClass: AuthGuard },

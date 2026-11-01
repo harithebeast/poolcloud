@@ -114,3 +114,28 @@ See `docs/PLAN.md` section 2 for the table list. Notable constraints:
 JSON logs (pino) with request ids; authorization headers, cookies and passwords are redacted and key material is never
 logged. `/metrics` exposes process metrics, request durations by route template, and pool gauges (accounts by status,
 capacity, usage) computed at scrape time.
+
+## Removing an account (migration)
+
+An account being removed is `DRAINING`: readable, but excluded from placement. The worker's `drain` job moves each piece
+with the same safety rules as an upload: reserve space elsewhere, record the new blob in the outbox before writing, copy
+while hashing and refuse on a checksum mismatch, queue the old copy for delayed deletion, then switch the chunk-map pointer
+with a compare-and-swap so a concurrent purge cannot be overwritten. Only an account that holds nothing becomes
+`DISCONNECTED`. See ADR-0008.
+
+```mermaid
+stateDiagram-v2
+  [*] --> HEALTHY: linked
+  HEALTHY --> DEGRADED: token revoked or repeated errors
+  DEGRADED --> HEALTHY: re-authorised
+  HEALTHY --> DRAINING: admin removes it
+  DRAINING --> HEALTHY: admin cancels
+  DRAINING --> DISCONNECTED: last piece moved
+  DISCONNECTED --> HEALTHY: linked again
+```
+
+## Rate limiting
+
+One address may make `RATE_LIMIT_PER_MINUTE` requests per minute (health probes are exempt). Failed logins and share-password
+guesses have their own, much stricter counters. Fastify's own 4xx errors (including 429) are passed through as such, never
+reported as server errors.

@@ -188,6 +188,7 @@ describe.skipIf(!url)('maintenance jobs (Postgres)', () => {
       auth: h.auth,
       alerts: h.alerts,
       orphans: h.orphans,
+      drain: h.drain,
       retentionDays: 30,
       log: (e) => void logs.push(e),
     });

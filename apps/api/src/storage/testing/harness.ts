@@ -4,7 +4,8 @@ import { CleanupService } from '../cleanup-service.js';
 import { KeyRing } from '../crypto.js';
 import { DownloadService } from '../download-service.js';
 import { FakeProvider } from '../fake-provider.js';
-import { MemoryAccountStore, MemoryCleanupOutbox } from '../memory-stores.js';
+import { DrainService } from '../drain-service.js';
+import { MemoryAccountStore, MemoryChunkStore, MemoryCleanupOutbox } from '../memory-stores.js';
 import type { HeadroomPolicy } from '../placement.js';
 import { UploadService, type StoredFile } from '../upload-service.js';
 
@@ -26,6 +27,7 @@ export function makePool(options: PoolOptions) {
   const ownerId = randomUUID();
   const store = new MemoryAccountStore(now);
   const outbox = new MemoryCleanupOutbox(now);
+  const chunks = new MemoryChunkStore();
   const providers = new Map<string, FakeProvider>();
   const accountIds: string[] = [];
 
@@ -55,6 +57,7 @@ export function makePool(options: PoolOptions) {
     accountIds,
     store,
     outbox,
+    chunks,
     providers,
     keyRing,
     uploads: new UploadService(deps),
@@ -68,8 +71,22 @@ export function makePool(options: PoolOptions) {
     put: (data: Buffer, encrypt = false, fileId: string = randomUUID()) =>
       new UploadService(deps).store(
         { ownerId, fileId, source: pieces(data, 1000), size: data.length, encrypt },
-        () => Promise.resolve(),
+        // Record the chunk map like the database commit would.
+        (file) => {
+          chunks.add(...file.chunks.map((c) => ({ ...c, ownerId, fileId: file.fileId })));
+          return Promise.resolve();
+        },
       ),
+    /** Moves pieces off accounts that are being removed. */
+    drainer: (onFinished?: (accountId: string, ownerId: string) => Promise<void>) =>
+      new DrainService({
+        accounts: store,
+        chunks,
+        outbox,
+        providers: resolve,
+        settings: { headroom: settings.headroom, reservationTtlMs: 60_000, cleanupGraceMs: 0 },
+        onFinished,
+      }),
   };
 }
 

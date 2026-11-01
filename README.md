@@ -39,7 +39,7 @@ accounts; there is no PoolDrive company server in between.
 - **Trash** with restore, and automatic deletion after 30 days.
 - **Share links** you can protect with a password, set to expire, or switch off at any time.
 - Optional **encryption**: files are scrambled before they reach Google, so Google only ever holds unreadable data.
-- A **Storage** page that shows each Google account, how full it is, and tells you if one needs attention.
+- A **Storage** page that shows each Google account, how full it is, tells you if one needs attention, and lets you **remove** an account safely (its files are moved to your other accounts first).
 - You can see **which Gmail account stores each file** (admin only, see [below](#which-gmail-holds-my-file)).
 
 ## Before you start
@@ -264,7 +264,7 @@ No. Free Google accounts, free software, and it runs on your own computer.
 
 ## What is and is not done
 
-Working today, and tested automatically (about 170 server tests, 26 browser tests including accessibility checks, and a 5 GB
+Working today, and tested automatically (about 190 server tests, 27 browser tests including accessibility checks, a load test, and a 5 GB
 streaming check that stays under 300 MB of memory):
 
 - Sign-in and first-run setup, pooled storage, whole-file and split-file storage, encryption, trash, sharing, search, previews, alerts,
@@ -272,7 +272,6 @@ streaming check that stays under 300 MB of memory):
 
 Not finished or not in this version:
 
-- **Removing a Google account safely** (moving its files to the others first) is planned.
 - **No second copy of files**: a split file depends on all its accounts being online.
 - **Two-factor login (TOTP)** is only a placeholder.
 - **Sharing whole folders** is not available (single files only).

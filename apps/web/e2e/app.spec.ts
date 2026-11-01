@@ -213,7 +213,7 @@ test('delete forever asks for confirmation, and the trash can be emptied', async
   // The multi-select delete above also trashed the other files in this folder.
   await page.getByRole('link', { name: 'Trash' }).click();
   await expect(page.getByRole('main').getByText('dropped.txt')).toBeVisible();
-  await page.getByRole('button', { name: 'Delete dropped.txt forever' }).click();
+  await page.getByRole('button', { name: 'Delete forever: dropped.txt' }).click();
   await expect(page.getByRole('dialog', { name: 'Delete forever?' })).toBeVisible();
   await page.getByRole('button', { name: 'Delete forever', exact: true }).click();
   await expect(page.getByRole('main').getByText('dropped.txt')).toHaveCount(0);
@@ -343,4 +343,26 @@ test('dark mode switches and is remembered', async () => {
 test('the pooled bar reflects what was stored', async () => {
   await page.getByRole('link', { name: 'Storage' }).click();
   await expect(page.getByText(/MB of 45\.0 GB used|KB of 45\.0 GB used/).first()).toBeVisible();
+});
+
+test('remove a Google account: its files move to the others and it leaves the pool', async () => {
+  await page.getByRole('link', { name: 'Storage' }).click();
+  await page.getByRole('button', { name: 'Remove fake-1@pool.local' }).click();
+  const dialog = page.getByRole('dialog', { name: /Remove fake-1@pool\.local/ });
+  await expect(dialog).toContainText('copied to your other accounts first');
+  await dialog.getByRole('button', { name: 'Remove account' }).click();
+
+  const row1 = page.getByRole('listitem').filter({ hasText: 'fake-1@pool.local' });
+  await expect(row1.getByText('Removed', { exact: true })).toBeVisible();
+  await expect(row1).toContainText('moved to your other accounts');
+  await expect(page.getByText(/of 30\.0 GB used/).first()).toBeVisible(); // 45 GB minus the removed 15
+
+  // Nothing was lost: a file can still be opened and its text read.
+  await page.getByRole('link', { name: 'My files' }).click();
+  await row(/Docs/).dblclick();
+  await row(/secret\.txt/).dblclick();
+  await expect(
+    page.getByRole('dialog', { name: 'secret.txt' }).getByText('top secret words'),
+  ).toBeVisible();
+  await page.keyboard.press('Escape');
 });

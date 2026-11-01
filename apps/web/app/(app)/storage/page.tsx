@@ -1,9 +1,10 @@
 'use client';
 import * as Progress from '@radix-ui/react-progress';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Info, Link2, RefreshCw, TriangleAlert, X } from 'lucide-react';
+import { Info, Link2, RefreshCw, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { StorageMeter, useUsage } from '@/components/storage-meter';
 import { Button } from '@/components/ui/button';
 import { del, describeError, get, post } from '@/lib/api';
@@ -23,8 +24,8 @@ export default function StoragePage() {
 const STATUS: Record<AccountView['status'], { label: string; cls: string }> = {
   HEALTHY: { label: 'Healthy', cls: 'bg-ok-soft text-ok' },
   DEGRADED: { label: 'Needs re-authorisation', cls: 'bg-danger-soft text-danger' },
-  DRAINING: { label: 'Being emptied', cls: 'bg-warn-soft text-warn' },
-  DISCONNECTED: { label: 'Disconnected', cls: 'bg-surface-hover text-muted' },
+  DRAINING: { label: 'Being removed', cls: 'bg-warn-soft text-warn' },
+  DISCONNECTED: { label: 'Removed', cls: 'bg-surface-hover text-muted' },
 };
 
 function Storage() {
@@ -35,6 +36,7 @@ function Storage() {
   const isAdmin = session.data?.user.role === 'admin';
   const usage = useUsage();
   const [banner, setBanner] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [removing, setRemoving] = useState<AccountView | null>(null);
 
   // The API sends the browser back here after the Google consent screen.
   useEffect(() => {
@@ -66,6 +68,14 @@ function Storage() {
       post<{ url: string }>('/accounts/google/start', accountId ? { accountId } : {}),
     onSuccess: ({ url }) => {
       window.location.href = url; // off to Google (or straight back, in fake mode)
+    },
+    onError: (e) => setBanner({ kind: 'error', text: describeError(e) }),
+  });
+  const cancelRemoval = useMutation({
+    mutationFn: (id: string) => post(`/accounts/${id}/cancel-removal`),
+    onSuccess: () => {
+      setBanner({ kind: 'ok', text: 'Removal cancelled. The account is back in your pool.' });
+      void qc.invalidateQueries();
     },
     onError: (e) => setBanner({ kind: 'error', text: describeError(e) }),
   });
@@ -164,13 +174,35 @@ function Storage() {
                   key={a.id}
                   a={a}
                   onReauth={() => link.mutate(a.id)}
-                  busy={link.isPending}
+                  onRemove={() => setRemoving(a)}
+                  onCancelRemoval={() => cancelRemoval.mutate(a.id)}
+                  busy={link.isPending || cancelRemoval.isPending}
                 />
               ))}
             </ul>
           )}
         </section>
       )}
+
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(o) => !o && setRemoving(null)}
+        title={`Remove ${removing?.email ?? 'this account'}?`}
+        description="Its files are copied to your other accounts first, and the account is disconnected only when it is empty. This can take a while for a full account, and you can cancel before it finishes. Your other accounts need enough free space to take the files."
+        confirmLabel="Remove account"
+        onConfirm={async () => {
+          try {
+            await del(`/accounts/${removing!.id}`);
+            setBanner({
+              kind: 'ok',
+              text: 'Removal started. Files are being moved in the background; progress shows below.',
+            });
+            await qc.invalidateQueries();
+          } catch (e) {
+            setBanner({ kind: 'error', text: describeError(e) });
+          }
+        }}
+      />
     </div>
   );
 }
@@ -178,10 +210,14 @@ function Storage() {
 function AccountRow({
   a,
   onReauth,
+  onRemove,
+  onCancelRemoval,
   busy,
 }: {
   a: AccountView;
   onReauth: () => void;
+  onRemove: () => void;
+  onCancelRemoval: () => void;
   busy: boolean;
 }) {
   const pct = a.quotaLimit > 0 ? Math.min(100, Math.round((a.quotaUsage / a.quotaLimit) * 100)) : 0;
@@ -195,16 +231,34 @@ function AccountRow({
             {s.label}
           </span>
         </div>
-        {(a.status === 'DEGRADED' || a.status === 'HEALTHY') && (
-          <Button
-            variant={a.status === 'DEGRADED' ? 'primary' : 'outline'}
-            size="sm"
-            onClick={onReauth}
-            disabled={busy}
-          >
-            <RefreshCw size={14} aria-hidden /> Re-authorise
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {(a.status === 'DEGRADED' || a.status === 'HEALTHY') && (
+            <Button
+              variant={a.status === 'DEGRADED' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={onReauth}
+              disabled={busy}
+            >
+              <RefreshCw size={14} aria-hidden /> Re-authorise
+            </Button>
+          )}
+          {a.status === 'HEALTHY' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRemove}
+              disabled={busy}
+              aria-label={`Remove ${a.email}`}
+            >
+              <Trash2 size={14} aria-hidden /> Remove
+            </Button>
+          )}
+          {a.status === 'DRAINING' && (
+            <Button variant="outline" size="sm" onClick={onCancelRemoval} disabled={busy}>
+              Cancel removal
+            </Button>
+          )}
+        </div>
       </div>
       <Progress.Root
         value={pct}
@@ -221,6 +275,21 @@ function AccountRow({
         <p className="text-xs text-danger">
           Files stored on this account are unavailable until you re-authorise it. Nothing has been
           deleted.
+        </p>
+      )}
+      {a.status === 'DRAINING' && (
+        <p role="status" className="text-xs text-warn">
+          Moving files to your other accounts:{' '}
+          {a.remaining && a.remaining.parts > 0
+            ? `${a.remaining.parts} ${a.remaining.parts === 1 ? 'piece' : 'pieces'} (${formatBytes(a.remaining.bytes)}) left. Files stay available meanwhile.`
+            : 'finishing up.'}
+        </p>
+      )}
+      {a.status === 'DISCONNECTED' && (
+        <p className="text-xs text-muted">
+          Its files were moved to your other accounts. To fully disconnect, also remove PoolDrive at
+          myaccount.google.com/permissions in that Google account. You may delete the empty
+          &quot;PoolDrive (do not edit)&quot; folder from its Drive.
         </p>
       )}
     </li>

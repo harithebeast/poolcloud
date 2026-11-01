@@ -56,7 +56,7 @@ Implemented as of Phase 2 (interactive docs at `/docs` outside production):
 - Alerts: `GET /alerts`, `DELETE /alerts/:id`.
 - Ops: `/health/live`, `/health/ready`, `/metrics` (optional bearer `METRICS_TOKEN`).
 
-Still to come: `DELETE /accounts/:id` (removal with data migration, Phase 4).
+Account removal: `DELETE /accounts/:id` (starts a migration, ADR-0008) and `POST /accounts/:id/cancel-removal`.
 
 ## 4. Risks and mitigations
 
@@ -80,3 +80,5 @@ Still to come: `DELETE /accounts/:id` (removal with data migration, Phase 4).
 ## 5. Phases
 
 0 Foundations → 1 Storage core → 2 API → 3 UI → 4 Hardening (see project brief).
+
+Status: phases 0-4 are complete. See [definition-of-done.md](definition-of-done.md) for the evidence behind each requirement.

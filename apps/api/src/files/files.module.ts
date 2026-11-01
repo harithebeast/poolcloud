@@ -10,7 +10,10 @@ import { FsService } from '../fs/fs.service.js';
 import { CleanupService } from '../storage/cleanup-service.js';
 import type { KeyRing } from '../storage/crypto.js';
 import { DownloadService } from '../storage/download-service.js';
-import { PgAccountStore, PgCleanupOutbox } from '../storage/pg-stores.js';
+import { PgAccountStore, PgChunkStore, PgCleanupOutbox } from '../storage/pg-stores.js';
+import { DrainService } from '../storage/drain-service.js';
+import { RemovalService } from '../accounts/removal.service.js';
+import { AlertsService } from '../alerts/alerts.service.js';
 import { QuotaSyncService } from '../storage/quota-sync.js';
 import { UploadService, type StorageSettings } from '../storage/upload-service.js';
 import { FilesController } from './files.controller.js';
@@ -34,6 +37,7 @@ export function storageSettings(cfg: AppConfig): StorageSettings {
     { provide: APP_FILTER, useClass: DomainErrorsFilter },
     { provide: FsService, inject: [DB], useFactory: (db: Db) => new FsService(db) },
     { provide: PgAccountStore, inject: [DB], useFactory: (db: Db) => new PgAccountStore(db) },
+    { provide: PgChunkStore, inject: [DB], useFactory: (db: Db) => new PgChunkStore(db) },
     { provide: PgCleanupOutbox, inject: [DB], useFactory: (db: Db) => new PgCleanupOutbox(db) },
     {
       provide: UploadService,
@@ -95,12 +99,61 @@ export function storageSettings(cfg: AppConfig): StorageSettings {
         }),
     },
     {
+      provide: DrainService,
+      inject: [PgAccountStore, PgChunkStore, PgCleanupOutbox, AccountsService, APP_CONFIG],
+      useFactory: (
+        accounts: PgAccountStore,
+        chunks: PgChunkStore,
+        outbox: PgCleanupOutbox,
+        svc: AccountsService,
+        cfg: AppConfig,
+      ) => {
+        const { headroom, reservationTtlMs, cleanupGraceMs } = storageSettings(cfg);
+        return new DrainService({
+          accounts,
+          chunks,
+          outbox,
+          providers: svc.providers,
+          settings: { headroom, reservationTtlMs, cleanupGraceMs },
+        });
+      },
+    },
+    {
+      provide: RemovalService,
+      inject: [DB, PgAccountStore, PgChunkStore, DrainService, AlertsService, APP_CONFIG],
+      useFactory: (
+        db: Db,
+        accounts: PgAccountStore,
+        chunks: PgChunkStore,
+        drain: DrainService,
+        alerts: AlertsService,
+        cfg: AppConfig,
+      ) =>
+        new RemovalService({
+          db,
+          accounts,
+          chunks,
+          drain,
+          alerts,
+          headroom: storageSettings(cfg).headroom,
+          inlineDrain: cfg.STORAGE_PROVIDER === 'fake',
+        }),
+    },
+    {
       provide: FilesService,
       inject: [DB, FsService, UploadService, DownloadService],
       useFactory: (db: Db, fs: FsService, uploads: UploadService, downloads: DownloadService) =>
         new FilesService({ db, fs, uploads, downloads }),
     },
   ],
-  exports: [FsService, FilesService, QuotaSyncService, CleanupService, PgAccountStore],
+  exports: [
+    FsService,
+    FilesService,
+    QuotaSyncService,
+    CleanupService,
+    PgAccountStore,
+    DrainService,
+    RemovalService,
+  ],
 })
 export class FilesModule {}

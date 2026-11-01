@@ -32,7 +32,12 @@ async function bootstrap(): Promise<void> {
   await app.register(fastifyCookie);
   registerStreamParsers(app.getHttpAdapter().getInstance());
   app.get(MetricsService).attach(app.getHttpAdapter().getInstance());
-  await app.register(fastifyRateLimit, { max: 300, timeWindow: '1 minute' });
+  await app.register(fastifyRateLimit, {
+    max: cfg.RATE_LIMIT_PER_MINUTE,
+    timeWindow: '1 minute',
+    // Health probes must never be throttled, or the container looks unhealthy under load.
+    allowList: (req) => req.url.startsWith('/health'),
+  });
   app.enableCors({
     origin: cfg.WEB_ORIGIN,
     credentials: true,

@@ -68,7 +68,7 @@ export default function TrashPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setConfirm(n)}
-                aria-label={`Delete ${n.name} forever`}
+                aria-label={`Delete forever: ${n.name}`}
               >
                 <Trash2 size={14} aria-hidden /> Delete forever
               </Button>

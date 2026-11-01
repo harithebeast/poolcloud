@@ -10,8 +10,14 @@ import * as schema from '../db/schema.js';
 import { FsService } from '../fs/fs.service.js';
 import { CleanupService } from '../storage/cleanup-service.js';
 import { KeyRing } from '../storage/crypto.js';
+import { DrainService } from '../storage/drain-service.js';
 import { OrphanScanner } from '../storage/orphan-scanner.js';
-import { PgAccountStore, PgBlobIndex, PgCleanupOutbox } from '../storage/pg-stores.js';
+import {
+  PgAccountStore,
+  PgBlobIndex,
+  PgChunkStore,
+  PgCleanupOutbox,
+} from '../storage/pg-stores.js';
 import { QuotaSyncService } from '../storage/quota-sync.js';
 import { MaintenanceJobs } from './maintenance.js';
 
@@ -65,6 +71,17 @@ export function createMaintenanceJobs(
     auth: new AuthService(db, { sessionSecret: cfg.SESSION_SECRET, sessionTtlMs: 0 }),
     alerts,
     orphans: new OrphanScanner({ accounts, providers: registry.get, index: new PgBlobIndex(db) }),
+    drain: new DrainService({
+      accounts,
+      chunks: new PgChunkStore(db),
+      outbox: new PgCleanupOutbox(db),
+      providers: registry.get,
+      settings: {
+        headroom: { percent: cfg.HEADROOM_PERCENT, minBytes: cfg.HEADROOM_MIN_BYTES },
+        reservationTtlMs: 15 * 60_000,
+        cleanupGraceMs: 60 * 60_000,
+      },
+    }),
     retentionDays: cfg.TRASH_RETENTION_DAYS,
     log,
   });

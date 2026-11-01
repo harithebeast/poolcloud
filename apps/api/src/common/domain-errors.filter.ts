@@ -8,6 +8,7 @@ import {
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { InvalidLinkStateError } from '../accounts/accounts.service.js';
 import { LinkError } from '../accounts/link-backend.js';
+import { RemovalNotAllowedError } from '../accounts/removal.service.js';
 import { IdempotencyMismatchError, UploadInProgressError } from '../files/files.service.js';
 import {
   InvalidMoveError,
@@ -39,6 +40,8 @@ export function mapDomainError(err: unknown): Mapped | null {
     return { status: 409, code: 'name_conflict', message: err.message };
   if (err instanceof InvalidNameError || err instanceof InvalidMoveError)
     return { status: 400, code: 'invalid_request', message: err.message };
+  if (err instanceof RemovalNotAllowedError)
+    return { status: 409, code: 'account_not_removable', message: err.message };
   if (err instanceof UploadInProgressError)
     return { status: 409, code: 'upload_in_progress', message: err.message };
   if (err instanceof IdempotencyMismatchError)
@@ -99,6 +102,17 @@ export class DomainErrorsFilter implements ExceptionFilter {
       void reply
         .status(err.getStatus())
         .send(typeof body === 'string' ? { statusCode: err.getStatus(), message: body } : body);
+      return;
+    }
+    // Errors raised by Fastify and its plugins (rate limiting, malformed bodies, ...) already carry
+    // the right 4xx status; pass those through instead of reporting a server error.
+    const status = (err as { statusCode?: unknown } | null)?.statusCode;
+    if (typeof status === 'number' && status >= 400 && status < 500) {
+      void reply.status(status).send({
+        statusCode: status,
+        code: status === 429 ? 'rate_limited' : 'bad_request',
+        message: err instanceof Error ? err.message : 'Bad request',
+      });
       return;
     }
     const mapped = mapDomainError(err);

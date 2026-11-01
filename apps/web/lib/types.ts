@@ -42,6 +42,8 @@ export interface AccountView {
   quotaUsage: number;
   quotaSyncedAt: string | null;
   lastError: string | null;
+  /** Present while the account is being removed: what is still to be moved. */
+  remaining?: { parts: number; bytes: number };
 }
 
 export interface AlertDto {
