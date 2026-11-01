@@ -11,12 +11,14 @@
     "dev": "tsx watch src/main.ts",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node dist/db/migrate.js"
+    "db:migrate": "node dist/db/migrate.js",
+    "test:ci": "vitest run --coverage"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
     "@fastify/helmet": "^13.2.0",
     "@fastify/rate-limit": "^11.2.1",
+    "@googleapis/drive": "^27.0.0",
     "@nestjs/common": "^12.3.2",
     "@nestjs/core": "^12.3.2",
     "@nestjs/platform-fastify": "^12.3.2",
@@ -24,6 +26,7 @@
     "@pooldrive/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.7",
+    "google-auth-library": "^11.3.2",
     "ioredis": "^6.0.0",
     "nestjs-pino": "^5.3.1",
     "pg": "^8.23.1",
@@ -35,6 +38,7 @@
   },
   "devDependencies": {
     "@types/pg": "^8.23.1",
+    "@vitest/coverage-v8": "^5.0.5",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15"
   },
