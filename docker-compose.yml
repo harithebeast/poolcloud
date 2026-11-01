@@ -9,6 +9,7 @@ x-app-env: &app-env
   MASTER_KEYS: ${MASTER_KEYS:?run node scripts/init-env.mjs}
   WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
   STORAGE_PROVIDER: ${STORAGE_PROVIDER:-google}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:4000/api/v1/accounts/google/callback}

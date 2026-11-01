@@ -398,3 +398,43 @@ describe.skipIf(!url)('pool behaviour over HTTP', () => {
     expect(res.statusCode).toBe(507);
   });
 });
+
+describe.skipIf(!url)('storage usage over HTTP', () => {
+  it('reports pooled capacity to everyone without revealing individual accounts', async () => {
+    const h = await createHarness(url!, {
+      env: { HEADROOM_PERCENT: '10', HEADROOM_MIN_BYTES: '0' },
+    });
+    try {
+      const admin = await h.login('u-admin@x.io', true);
+      const member = await h.login('u-member@x.io');
+      await h.linkAccount(admin, { limit: 10_000, usage: 1_000 });
+      const b = await h.linkAccount(admin, { limit: 20_000, usage: 2_000 });
+
+      for (const who of [admin, member]) {
+        const res = await h.call('GET', '/storage/usage', who);
+        expect(res.statusCode).toBe(200);
+        expect(JSON.stringify(res.json())).not.toMatch(/@|fake-|email/);
+      }
+      expect((await h.call('GET', '/storage/usage', admin)).json()).toMatchObject({
+        limit: 30_000,
+        used: 3_000,
+        free: 27_000,
+        accounts: { total: 2, healthy: 2, degraded: 0 },
+        uploadable: 8_000 + 16_000, // free minus 10% headroom, per account
+      });
+      expect((await h.call('GET', '/storage/usage', member)).json()).toMatchObject({
+        limit: 0,
+        accounts: { total: 0 },
+      });
+
+      b.provider.setDown(true);
+      await h.quotaSync.syncOwner(admin.id);
+      expect((await h.call('GET', '/storage/usage', admin)).json()).toMatchObject({
+        accounts: { total: 2, healthy: 1, degraded: 1 },
+        uploadable: 8_000,
+      });
+    } finally {
+      await h.close();
+    }
+  });
+});

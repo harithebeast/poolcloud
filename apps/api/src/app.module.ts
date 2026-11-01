@@ -8,6 +8,7 @@ import { AccountsModule } from './accounts/accounts.module.js';
 import { FilesModule } from './files/files.module.js';
 import { SharesModule } from './shares/shares.module.js';
 import { AlertsModule } from './alerts/alerts.module.js';
+import { MetricsModule } from './metrics/metrics.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { HealthController } from './health/health.controller.js';
 
@@ -21,6 +22,7 @@ import { HealthController } from './health/health.controller.js';
     AccountsModule,
     FilesModule,
     SharesModule,
+    MetricsModule,
     LoggerModule.forRootAsync({
       inject: [APP_CONFIG],
       useFactory: (cfg: AppConfig) => ({

@@ -28,6 +28,12 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...base, STORAGE_PROVIDER: 'google' })).not.toThrow();
   });
 
+  it('treats an empty METRICS_TOKEN as unset but rejects a weak one', () => {
+    expect(loadConfig({ ...base, METRICS_TOKEN: '' }).METRICS_TOKEN).toBeUndefined();
+    expect(loadConfig({ ...base, METRICS_TOKEN: 'a'.repeat(16) }).METRICS_TOKEN).toBeDefined();
+    expect(() => loadConfig({ ...base, METRICS_TOKEN: 'short' })).toThrow(/METRICS_TOKEN/);
+  });
+
   it('does not echo secret values in errors', () => {
     try {
       loadConfig({ ...base, SESSION_SECRET: 'supersecret' });

@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { registerStreamParsers } from './common/stream-parser.js';
+import { MetricsService } from './metrics/metrics.service.js';
 import { APP_CONFIG, type AppConfig } from './config/config.module.js';
 
 async function bootstrap(): Promise<void> {
@@ -30,6 +31,7 @@ async function bootstrap(): Promise<void> {
   });
   await app.register(fastifyCookie);
   registerStreamParsers(app.getHttpAdapter().getInstance());
+  app.get(MetricsService).attach(app.getHttpAdapter().getInstance());
   await app.register(fastifyRateLimit, { max: 300, timeWindow: '1 minute' });
   app.enableCors({ origin: cfg.WEB_ORIGIN, credentials: true });
   app.setGlobalPrefix('api/v1', { exclude: ['health/(.*)', 'metrics'] });

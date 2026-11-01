@@ -14,6 +14,7 @@ import { PgAccountStore, PgCleanupOutbox } from '../storage/pg-stores.js';
 import { QuotaSyncService } from '../storage/quota-sync.js';
 import { UploadService, type StorageSettings } from '../storage/upload-service.js';
 import { FilesController } from './files.controller.js';
+import { StorageController } from './storage.controller.js';
 import { FilesService } from './files.service.js';
 
 export function storageSettings(cfg: AppConfig): StorageSettings {
@@ -27,7 +28,7 @@ export function storageSettings(cfg: AppConfig): StorageSettings {
 
 @Global()
 @Module({
-  controllers: [FilesController],
+  controllers: [FilesController, StorageController],
   providers: [
     { provide: APP_FILTER, useClass: DomainErrorsFilter },
     { provide: FsService, inject: [DB], useFactory: (db: Db) => new FsService(db) },

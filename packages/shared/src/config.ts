@@ -31,6 +31,8 @@ export const configSchema = z.object({
   TRASH_RETENTION_DAYS: z.coerce.number().int().min(1).default(30),
   FEATURE_TOTP: bool.default(false),
   SENTRY_DSN: z.string().optional(),
+  /** When set, /metrics requires `Authorization: Bearer <token>`. */
+  METRICS_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(16).optional()),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;

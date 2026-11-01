@@ -8,6 +8,9 @@ import { AlertsController } from '../alerts/alerts.controller.js';
 import { AccountHealth, AlertsService } from '../alerts/alerts.service.js';
 import { MaintenanceJobs } from '../jobs/maintenance.js';
 import { OrphanScanner } from '../storage/orphan-scanner.js';
+import { StorageController } from '../files/storage.controller.js';
+import { MetricsController } from '../metrics/metrics.controller.js';
+import { MetricsService } from '../metrics/metrics.service.js';
 import { AccountsController } from '../accounts/accounts.controller.js';
 import { AccountsService } from '../accounts/accounts.service.js';
 import { FakeLinkBackend } from '../accounts/link-backend.js';
@@ -40,6 +43,8 @@ export interface HarnessOptions {
   settings?: Partial<StorageSettings>;
   /** Attempts allowed per window by the login/share throttle (default: effectively unlimited). */
   throttleMax?: number;
+  /** Extra environment for loadConfig (e.g. METRICS_TOKEN). */
+  env?: Record<string, string>;
 }
 
 export interface Session {
@@ -61,6 +66,7 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
     MASTER_KEYS: `k1:${Buffer.alloc(32, 7).toString('base64')}`,
     WEB_ORIGIN: 'http://localhost:3000',
     STORAGE_PROVIDER: 'fake',
+    ...options.env,
   });
   const keyRing = KeyRing.parse(cfg.MASTER_KEYS);
   const settings: StorageSettings = {
@@ -100,6 +106,7 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
   const outbox = new PgCleanupOutbox(testDb.db);
   const fs = new FsService(testDb.db);
   const alerts = new AlertsService(testDb.db);
+  const metrics = new MetricsService(testDb.db);
   const health = new AccountHealth({ accounts: store, alerts });
   const uploads = new UploadService({
     accounts: store,
@@ -147,6 +154,8 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
       SharesController,
       PublicSharesController,
       AlertsController,
+      MetricsController,
+      StorageController,
     ],
     providers: [
       { provide: AuthService, useValue: auth },
@@ -155,6 +164,8 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
       { provide: FilesService, useValue: files },
       { provide: SharesService, useValue: shares },
       { provide: AlertsService, useValue: alerts },
+      { provide: MetricsService, useValue: metrics },
+      { provide: PgAccountStore, useValue: store },
       {
         provide: LoginThrottle,
         useValue: new LoginThrottle(new MemoryCounterStore(), options.throttleMax ?? 1000, 60),
@@ -167,6 +178,7 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
   const app = mod.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
   await app.register(fastifyCookie);
   registerStreamParsers(app.getHttpAdapter().getInstance());
+  metrics.attach(app.getHttpAdapter().getInstance());
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
 
