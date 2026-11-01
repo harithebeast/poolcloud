@@ -29,6 +29,8 @@ export function ShareDialog({ node, onClose }: { node: NodeDto | null; onClose: 
   const shares = useQuery({
     queryKey: ['shares', node?.id],
     enabled: node !== null,
+    // Download counts change outside this page, so always show fresh numbers when opened.
+    staleTime: 0,
     queryFn: () => get<{ items: ShareDto[] }>('/shares', { nodeId: node!.id }),
   });
 

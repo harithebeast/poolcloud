@@ -78,11 +78,12 @@ export class GoogleLinkBackend implements LinkBackend {
 
 /** Development/test backend: "authorises" instantly with synthetic accounts. Never used with Google. */
 export class FakeLinkBackend implements LinkBackend {
-  private counter = 0;
+  private accounts = 0;
+  private folders = 0;
   constructor(private readonly callbackUrl: string) {}
 
   authUrl(state: string, loginHint?: string): string {
-    const email = loginHint ?? `fake-${++this.counter}@pool.local`;
+    const email = loginHint ?? `fake-${++this.accounts}@pool.local`;
     const url = new URL(this.callbackUrl);
     url.searchParams.set('code', `fake:${email}`);
     url.searchParams.set('state', state);
@@ -100,6 +101,6 @@ export class FakeLinkBackend implements LinkBackend {
   }
 
   createAppFolder(): Promise<string> {
-    return Promise.resolve(`fake-folder-${++this.counter}`);
+    return Promise.resolve(`fake-folder-${++this.folders}`);
   }
 }

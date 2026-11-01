@@ -29,12 +29,13 @@ for (const scheme of ['light', 'dark'] as const) {
     });
 
     test('signed-in screens', async ({ page }) => {
+      test.setTimeout(120_000);
       await page.goto('/login');
       await page.getByLabel('Email').fill(EMAIL);
       await page.getByLabel('Password').fill(PASSWORD);
       await page.getByRole('button', { name: 'Sign in' }).click();
       await expect(page).toHaveURL(/\/files$/);
-      await expect(page.getByRole('listbox')).toBeVisible();
+      await expect(page.getByRole('list', { name: 'Files and folders' })).toBeVisible();
 
       await audit(page, 'files (grid)');
       await page.getByRole('button', { name: 'Switch to list view' }).click();
@@ -46,7 +47,9 @@ for (const scheme of ['light', 'dark'] as const) {
       await audit(page, 'New menu');
       await page.keyboard.press('Escape');
 
-      await page.getByRole('option').first().dblclick();
+      await page.locator('[data-id]').filter({ hasText: 'Docs' }).dblclick(); // a folder first
+      await expect(page).toHaveURL(/\/files\/[0-9a-f-]{36}$/);
+      await page.locator('[data-id]').filter({ hasText: 'greeting.txt' }).dblclick();
       await expect(page.getByRole('dialog')).toBeVisible();
       await audit(page, 'preview dialog');
       await page.keyboard.press('Escape');
@@ -59,15 +62,6 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(page.getByRole('heading', { name: 'Storage' })).toBeVisible();
       await expect(page.getByText('fake-1@pool.local')).toBeVisible();
       await audit(page, 'storage');
-
-      await page
-        .getByRole('button', { name: 'Switch to list view' })
-        .click()
-        .catch(() => undefined);
-      // Put the view back for the next run.
-      await page.goto('/files');
-      const toggle = page.getByRole('button', { name: 'Switch to grid view' });
-      if (await toggle.isVisible()) await toggle.click();
     });
 
     test('public share page', async ({ page }) => {

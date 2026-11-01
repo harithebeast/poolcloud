@@ -21,7 +21,8 @@ test.afterAll(async () => {
   await context.close();
 });
 
-const row = (name: string | RegExp) => page.getByRole('option', { name });
+// One row per file or folder (the "more actions" buttons are separate, so they never match).
+const row = (name: string | RegExp) => page.locator('[data-id]').filter({ hasText: name });
 const upload = (name: string, body: string | Buffer, mimeType = 'text/plain') =>
   page
     .getByLabel('Choose files to upload')
@@ -40,7 +41,7 @@ test('first run: create the admin, then sign out and back in', async () => {
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByLabel('Confirm password').fill('something-else-entirely');
   await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page.getByRole('alert')).toHaveText('The passwords do not match.');
+  await expect(page.locator('form').getByRole('alert')).toHaveText('The passwords do not match.');
 
   await page.getByLabel('Confirm password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Create account' }).click();
@@ -55,7 +56,7 @@ test('first run: create the admin, then sign out and back in', async () => {
   await page.getByLabel('Email').fill(EMAIL);
   await page.getByLabel('Password').fill('not-the-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('alert')).toHaveText('Incorrect email or password.');
+  await expect(page.locator('form').getByRole('alert')).toHaveText('Incorrect email or password.');
 
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
@@ -90,7 +91,8 @@ test('link three Google accounts and see one pooled bar', async () => {
     await expect(page).toHaveURL(/\/storage$/); // the result query string is cleaned up
   }
   await expect(page.getByText('0 B of 45.0 GB used').first()).toBeVisible();
-  for (let i = 1; i <= 3; i++) await expect(page.getByText(`fake-${i}@pool.local`)).toBeVisible();
+  for (let i = 1; i <= 3; i++)
+    await expect(page.getByText(`fake-${i}@pool.local`, { exact: true })).toBeVisible();
   await expect(
     page.getByText(/unavailable while any account holding part of it is offline/),
   ).toBeVisible();
@@ -141,7 +143,7 @@ test('create a folder, rename, and move files into it', async () => {
 
   await row(/hello\.txt/).click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Rename' }).click();
-  await page.getByLabel('Name').fill('greeting.txt');
+  await page.getByRole('dialog', { name: 'Rename' }).getByLabel('Name').fill('greeting.txt');
   await page.getByRole('button', { name: 'Rename' }).click();
   await expect(row(/greeting\.txt/)).toBeVisible();
   await expect(row(/hello\.txt/)).toHaveCount(0);
@@ -182,8 +184,12 @@ test('drag files from the desktop onto the page uploads them', async () => {
     dt.items.add(new File(['dropped bytes'], 'dropped.txt', { type: 'text/plain' }));
     return dt;
   });
-  await page.getByRole('listbox').dispatchEvent('dragover', { dataTransfer: data });
-  await page.getByRole('listbox').dispatchEvent('drop', { dataTransfer: data });
+  await page
+    .getByRole('list', { name: 'Files and folders' })
+    .dispatchEvent('dragover', { dataTransfer: data });
+  await page
+    .getByRole('list', { name: 'Files and folders' })
+    .dispatchEvent('drop', { dataTransfer: data });
   await expect(row(/dropped\.txt/)).toBeVisible();
 });
 
@@ -203,13 +209,18 @@ test('multi-select with keyboard, then trash and restore', async () => {
   await expect(row(/greeting\.txt/)).toBeVisible();
 });
 
-test('delete forever asks for confirmation', async () => {
-  await row(/dropped\.txt/).click();
-  await page.keyboard.press('Delete');
+test('delete forever asks for confirmation, and the trash can be emptied', async () => {
+  // The multi-select delete above also trashed the other files in this folder.
   await page.getByRole('link', { name: 'Trash' }).click();
+  await expect(page.getByRole('main').getByText('dropped.txt')).toBeVisible();
   await page.getByRole('button', { name: 'Delete dropped.txt forever' }).click();
   await expect(page.getByRole('dialog', { name: 'Delete forever?' })).toBeVisible();
   await page.getByRole('button', { name: 'Delete forever', exact: true }).click();
+  await expect(page.getByRole('main').getByText('dropped.txt')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Empty trash' }).click();
+  await expect(page.getByRole('dialog', { name: 'Empty trash?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Empty trash', exact: true }).last().click();
   await expect(page.getByText('Trash is empty.')).toBeVisible();
 });
 

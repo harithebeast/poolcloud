@@ -60,7 +60,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </a>
       <div className="flex h-screen flex-col bg-surface">
         <header className="flex items-center gap-2 px-3 py-2 sm:gap-4 sm:px-4">
-          <Link href="/files" className="flex items-center gap-2 pr-2 text-lg font-medium sm:w-56">
+          <Link
+            href="/files"
+            aria-label="PoolDrive home"
+            className="flex items-center gap-2 pr-2 text-lg font-medium sm:w-56"
+          >
             <HardDrive className="text-primary" aria-hidden />
             <span className="hidden sm:inline">PoolDrive</span>
           </Link>
@@ -111,6 +115,7 @@ function Nav() {
                 href={href}
                 aria-current={active ? 'page' : undefined}
                 title={label}
+                aria-label={label}
                 className={cn(
                   'flex h-10 items-center justify-center gap-3 rounded-full px-3 text-sm md:justify-start',
                   active
@@ -179,7 +184,7 @@ function UserMenu({ email }: { email: string }) {
     router.replace('/login');
   }
   return (
-    <Menu.Root>
+    <Menu.Root modal={false}>
       <Menu.Trigger
         aria-label={`Account menu for ${email}`}
         className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-semibold uppercase text-on-primary"

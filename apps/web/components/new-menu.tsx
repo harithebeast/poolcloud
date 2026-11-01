@@ -27,7 +27,7 @@ export function NewMenu() {
 
   return (
     <>
-      <Menu.Root>
+      <Menu.Root modal={false}>
         <Menu.Trigger className="flex h-12 items-center gap-2 rounded-2xl bg-primary-soft px-5 text-sm font-medium text-on-primary-soft shadow-sm hover:opacity-90">
           <Plus size={20} aria-hidden /> New
         </Menu.Trigger>

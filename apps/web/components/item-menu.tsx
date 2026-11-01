@@ -95,7 +95,7 @@ export function ItemContextMenu({
   handlers: MenuHandlers;
 }) {
   return (
-    <CM.Root>
+    <CM.Root modal={false}>
       <CM.Trigger asChild>{children}</CM.Trigger>
       <CM.Portal>
         <CM.Content className={CONTENT}>
@@ -117,7 +117,7 @@ export function ItemDropdown({
   handlers: MenuHandlers;
 }) {
   return (
-    <DM.Root>
+    <DM.Root modal={false}>
       <DM.Trigger asChild>{trigger}</DM.Trigger>
       <DM.Portal>
         <DM.Content align="end" sideOffset={4} className={CONTENT}>

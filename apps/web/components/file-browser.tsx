@@ -294,49 +294,84 @@ export function FileBrowser({ folderId = null, searchQuery }: Props) {
       >
         {/* Header: breadcrumbs and view controls */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2">
-          {searching ? (
-            <h1 className="text-lg font-medium">Search results for “{searchQuery}”</h1>
-          ) : (
-            <nav aria-label="Breadcrumb">
-              <ol className="flex flex-wrap items-center gap-1 text-lg">
-                <li>
-                  <button
-                    {...dropProps(null)}
-                    onClick={() => router.push('/files')}
-                    aria-current={folderId === null ? 'page' : undefined}
-                    className={cn(
-                      'rounded-lg px-2 py-1 hover:bg-surface-hover',
-                      folderId === null && 'font-medium',
-                      dropTarget === 'root' && 'bg-primary-soft',
-                    )}
-                  >
-                    {folderId === null ? <h1 className="inline text-lg">My files</h1> : 'My files'}
-                  </button>
-                </li>
-                {crumbs.map((c, i) => (
-                  <li key={c.id} className="flex items-center gap-1">
-                    <ChevronRight size={16} aria-hidden className="text-muted" />
+          <div className="relative min-w-0 flex-1 self-stretch">
+            {searching ? (
+              <h1 className="text-lg font-medium">Search results for “{searchQuery}”</h1>
+            ) : (
+              <nav aria-label="Breadcrumb">
+                <ol className="flex flex-wrap items-center gap-1 text-lg">
+                  <li>
                     <button
-                      {...dropProps(c.id)}
-                      onClick={() => router.push(`/files/${c.id}`)}
-                      aria-current={i === crumbs.length - 1 ? 'page' : undefined}
+                      {...dropProps(null)}
+                      onClick={() => router.push('/files')}
+                      aria-current={folderId === null ? 'page' : undefined}
                       className={cn(
                         'rounded-lg px-2 py-1 hover:bg-surface-hover',
-                        i === crumbs.length - 1 && 'font-medium',
-                        dropTarget === c.id && 'bg-primary-soft',
+                        folderId === null && 'font-medium',
+                        dropTarget === 'root' && 'bg-primary-soft',
                       )}
                     >
-                      {i === crumbs.length - 1 ? (
-                        <h1 className="inline text-lg">{c.name}</h1>
+                      {folderId === null ? (
+                        <h1 className="inline text-lg">My files</h1>
                       ) : (
-                        c.name
+                        'My files'
                       )}
                     </button>
                   </li>
-                ))}
-              </ol>
-            </nav>
-          )}
+                  {crumbs.map((c, i) => (
+                    <li key={c.id} className="flex items-center gap-1">
+                      <ChevronRight size={16} aria-hidden className="text-muted" />
+                      <button
+                        {...dropProps(c.id)}
+                        onClick={() => router.push(`/files/${c.id}`)}
+                        aria-current={i === crumbs.length - 1 ? 'page' : undefined}
+                        className={cn(
+                          'rounded-lg px-2 py-1 hover:bg-surface-hover',
+                          i === crumbs.length - 1 && 'font-medium',
+                          dropTarget === c.id && 'bg-primary-soft',
+                        )}
+                      >
+                        {i === crumbs.length - 1 ? (
+                          <h1 className="inline text-lg">{c.name}</h1>
+                        ) : (
+                          c.name
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            )}
+            {/* Selection bar: replaces the header in place, so rows never shift under the pointer */}
+            {selectedNodes.length > 0 && (
+              <div
+                className="absolute inset-0 z-10 flex items-center gap-2 rounded-lg bg-primary-soft px-3 text-sm text-on-primary-soft"
+                role="toolbar"
+                aria-label="Selection actions"
+              >
+                <span className="font-medium">{selectedNodes.length} selected</span>
+                <span className="mx-2 h-4 w-px bg-current opacity-30" aria-hidden />
+                <button
+                  className="rounded-full px-3 py-1 hover:bg-black/10"
+                  onClick={() => setMoving(selectedNodes)}
+                >
+                  Move
+                </button>
+                <button
+                  className="rounded-full px-3 py-1 hover:bg-black/10"
+                  onClick={() => handlers.trash(selectedNodes)}
+                >
+                  Move to trash
+                </button>
+                <button
+                  className="ml-auto rounded-full px-3 py-1 hover:bg-black/10"
+                  onClick={() => setSelected([])}
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-1">
             <label className="flex items-center gap-1 text-sm text-muted">
               <ArrowDownAZ size={16} aria-hidden />
@@ -374,36 +409,6 @@ export function FileBrowser({ folderId = null, searchQuery }: Props) {
             </Button>
           </div>
         </div>
-
-        {/* Selection bar */}
-        {selectedNodes.length > 0 && (
-          <div
-            className="flex items-center gap-2 bg-primary-soft px-4 py-2 text-sm text-on-primary-soft"
-            role="toolbar"
-            aria-label="Selection actions"
-          >
-            <span className="font-medium">{selectedNodes.length} selected</span>
-            <span className="mx-2 h-4 w-px bg-current opacity-30" aria-hidden />
-            <button
-              className="rounded-full px-3 py-1 hover:bg-black/10"
-              onClick={() => setMoving(selectedNodes)}
-            >
-              Move
-            </button>
-            <button
-              className="rounded-full px-3 py-1 hover:bg-black/10"
-              onClick={() => handlers.trash(selectedNodes)}
-            >
-              Move to trash
-            </button>
-            <button
-              className="ml-auto rounded-full px-3 py-1 hover:bg-black/10"
-              onClick={() => setSelected([])}
-            >
-              Clear
-            </button>
-          </div>
-        )}
 
         {unavailableCount > 0 && (
           <p
@@ -450,9 +455,7 @@ export function FileBrowser({ folderId = null, searchQuery }: Props) {
               )}
               <ul
                 ref={listRef}
-                role="listbox"
                 aria-label={searching ? 'Search results' : 'Files and folders'}
-                aria-multiselectable
                 onKeyDown={onKeyDown}
                 className={cn(
                   view === 'grid'
@@ -464,67 +467,73 @@ export function FileBrowser({ folderId = null, searchQuery }: Props) {
                   const isSelected = selected.includes(n.id);
                   const draggable = !searching;
                   return (
-                    <ItemContextMenu key={n.id} targets={targetsFor(n)} handlers={handlers}>
-                      <li
-                        role="option"
-                        aria-selected={isSelected}
-                        data-id={n.id}
-                        tabIndex={isSelected || (selected.length === 0 && i === 0) ? 0 : -1}
-                        draggable={draggable}
-                        onClick={(e: MouseEvent) => select(e, n)}
-                        onDoubleClick={() => open(n)}
-                        onContextMenu={() =>
-                          !isSelected &&
-                          select({ shiftKey: false, ctrlKey: false, metaKey: false }, n)
-                        }
-                        onDragStart={(e) => {
-                          const ids = isSelected ? selected : [n.id];
-                          e.dataTransfer.setData(MOVE_MIME, JSON.stringify(ids));
-                          e.dataTransfer.effectAllowed = 'move';
-                          if (!isSelected) setSelected([n.id]);
-                        }}
-                        {...(n.type === 'folder' ? dropProps(n.id) : {})}
-                        className={cn(
-                          'group relative cursor-default select-none rounded-xl border text-sm',
-                          view === 'grid'
-                            ? 'flex flex-col gap-2 p-3'
-                            : 'grid grid-cols-[1fr_7rem_6rem_2.5rem] items-center gap-3 rounded-lg px-3 py-2',
-                          isSelected
-                            ? 'border-transparent bg-primary-soft text-on-primary-soft'
-                            : 'border-line hover:bg-surface-hover',
-                          view === 'list' && !isSelected && 'border-transparent',
-                          dropTarget === n.id && 'ring-2 ring-primary',
-                          n.unavailable && 'opacity-70',
-                        )}
-                      >
-                        <Row n={n} grid={view === 'grid'} />
-                        {view === 'list' && (
-                          <>
-                            <span className="text-muted">{formatDate(n.updatedAt)}</span>
-                            <span className="text-right text-muted">
-                              {n.type === 'file' ? formatBytes(n.size) : '—'}
-                            </span>
-                          </>
-                        )}
-                        <ItemDropdown
-                          targets={targetsFor(n)}
-                          handlers={handlers}
-                          trigger={
-                            <button
-                              aria-label={`More actions for ${n.name}`}
-                              className={cn(
-                                'flex h-8 w-8 items-center justify-center rounded-full hover:bg-black/10',
-                                view === 'grid' && 'absolute right-2 top-2',
-                              )}
-                              onClick={(e) => e.stopPropagation()}
-                              onDoubleClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreVertical size={16} aria-hidden />
-                            </button>
+                    <li key={n.id} className="relative">
+                      <ItemContextMenu targets={targetsFor(n)} handlers={handlers}>
+                        <div
+                          role="button"
+                          aria-pressed={isSelected}
+                          data-id={n.id}
+                          tabIndex={isSelected || (selected.length === 0 && i === 0) ? 0 : -1}
+                          draggable={draggable}
+                          onClick={(e: MouseEvent) => select(e, n)}
+                          onDoubleClick={() => open(n)}
+                          onContextMenu={() =>
+                            !isSelected &&
+                            select({ shiftKey: false, ctrlKey: false, metaKey: false }, n)
                           }
-                        />
-                      </li>
-                    </ItemContextMenu>
+                          onDragStart={(e) => {
+                            const ids = isSelected ? selected : [n.id];
+                            e.dataTransfer.setData(MOVE_MIME, JSON.stringify(ids));
+                            e.dataTransfer.effectAllowed = 'move';
+                            if (!isSelected) setSelected([n.id]);
+                          }}
+                          {...(n.type === 'folder' ? dropProps(n.id) : {})}
+                          className={cn(
+                            'group relative cursor-default select-none rounded-xl border text-sm',
+                            view === 'grid'
+                              ? 'flex flex-col gap-2 p-3'
+                              : 'grid grid-cols-[1fr_7rem_6rem_2.5rem] items-center gap-3 rounded-lg px-3 py-2',
+                            isSelected
+                              ? 'border-transparent bg-primary-soft text-on-primary-soft'
+                              : 'border-line hover:bg-surface-hover',
+                            view === 'list' && !isSelected && 'border-transparent',
+                            dropTarget === n.id && 'ring-2 ring-primary',
+                            n.unavailable && 'opacity-70',
+                          )}
+                        >
+                          <Row n={n} grid={view === 'grid'} selected={isSelected} />
+                          {view === 'list' && (
+                            <>
+                              <span className={cn(!isSelected && 'text-muted')}>
+                                {formatDate(n.updatedAt)}
+                              </span>
+                              <span className={cn('text-right', !isSelected && 'text-muted')}>
+                                {n.type === 'file' ? formatBytes(n.size) : '—'}
+                              </span>
+                            </>
+                          )}
+                          {view === 'list' && <span aria-hidden />}
+                        </div>
+                      </ItemContextMenu>
+                      <ItemDropdown
+                        targets={targetsFor(n)}
+                        handlers={handlers}
+                        trigger={
+                          <button
+                            aria-label={`More actions for ${n.name}`}
+                            className={cn(
+                              'flex h-8 w-8 items-center justify-center rounded-full hover:bg-black/10',
+                              'absolute right-2',
+                              view === 'grid' ? 'top-2' : 'top-1/2 -translate-y-1/2',
+                            )}
+                            onClick={(e) => e.stopPropagation()}
+                            onDoubleClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreVertical size={16} aria-hidden />
+                          </button>
+                        }
+                      />
+                    </li>
                   );
                 })}
               </ul>
@@ -593,7 +602,7 @@ export function FileBrowser({ folderId = null, searchQuery }: Props) {
   );
 }
 
-function Row({ n, grid }: { n: NodeDto; grid: boolean }) {
+function Row({ n, grid, selected }: { n: NodeDto; grid: boolean; selected: boolean }) {
   const badges = (
     <>
       {n.encrypted && <Lock size={12} aria-label="Encrypted" className="shrink-0" />}
@@ -614,7 +623,7 @@ function Row({ n, grid }: { n: NodeDto; grid: boolean }) {
           </span>
           {badges}
         </div>
-        <p className="text-xs text-muted">
+        <p className={cn('text-xs', !selected && 'text-muted')}>
           {n.type === 'file' ? `${formatBytes(n.size)} · ` : ''}
           {formatDate(n.updatedAt)}
         </p>
