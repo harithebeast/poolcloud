@@ -85,7 +85,6 @@ export class SharesController {
 }
 
 const unlockBody = z.object({ password: z.string().max(256).optional() });
-const ATTEMPTS_PER_WINDOW = 10;
 
 /** Unauthenticated access to a shared file. Every response for a bad token is the same 404. */
 @ApiTags('public')
