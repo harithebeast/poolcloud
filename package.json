@@ -1,0 +1,32 @@
+{
+  "name": "pooldrive",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm --filter @pooldrive/shared build && pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @pooldrive/api db:generate",
+    "db:migrate": "pnpm --filter @pooldrive/api db:migrate"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@swc/core": "^1.16.21",
+    "@types/node": "^26.6.6",
+    "@vitest/coverage-v8": "^5.0.5",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "unplugin-swc": "^2.0.0",
+    "vitest": "^5.0.5"
+  }
+}
