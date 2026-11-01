@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import type { Db } from '../db/db.module.js';
-import { fileChunks, nodes, uploads } from '../db/schema.js';
+import { fileChunks, nodes, storageAccounts, uploads } from '../db/schema.js';
 import {
   FsService,
   NameConflictError,
@@ -214,6 +214,25 @@ export class FilesService {
         ),
       );
     if (clash) throw new NameConflictError(name);
+  }
+
+  /**
+   * Which of these files cannot be read right now because a Google account holding part of them is
+   * offline. Metadata is untouched; this only tells the UI what to grey out.
+   */
+  async unavailable(fileIds: string[]): Promise<Set<string>> {
+    if (fileIds.length === 0) return new Set();
+    const rows = await this.deps.db
+      .selectDistinct({ id: fileChunks.fileId })
+      .from(fileChunks)
+      .innerJoin(storageAccounts, eq(storageAccounts.id, fileChunks.accountId))
+      .where(
+        and(
+          inArray(fileChunks.fileId, fileIds),
+          notInArray(storageAccounts.status, ['HEALTHY', 'DRAINING']),
+        ),
+      );
+    return new Set(rows.map((r) => r.id));
   }
 
   /** Open a file for reading. Range support is limited to whole, unencrypted files. */

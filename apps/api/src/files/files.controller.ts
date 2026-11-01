@@ -26,8 +26,9 @@ import { FilesService } from './files.service.js';
 import { contentDisposition, isPreviewable, mimeFor, parseRange } from './mime.js';
 
 /** What clients see of a node. Key material and storage placement never leave the server. */
-export function toDto(n: NodeRow) {
+export function toDto(n: NodeRow, unavailable = false) {
   return {
+    unavailable,
     id: n.id,
     parentId: n.parentId,
     type: n.type,
@@ -73,19 +74,21 @@ export class FilesController {
   @Get('files')
   async list(@Req() req: AuthedRequest, @Query('parentId') parentId?: string) {
     const items = await this.fs.list(req.auth!.user.id, parentId ? id(parentId) : null);
-    return { items: items.map(toDto) };
+    return { items: await this.withAvailability(items) };
   }
 
   @Get('files/search')
   async search(@Req() req: AuthedRequest, @Query('q') q = '') {
-    return { items: (await this.fs.search(req.auth!.user.id, q.slice(0, 200))).map(toDto) };
+    const found = await this.fs.search(req.auth!.user.id, q.slice(0, 200));
+    return { items: await this.withAvailability(found) };
   }
 
   @Get('files/:id')
   async get(@Req() req: AuthedRequest, @Param('id') raw: string) {
     const owner = req.auth!.user.id;
     const node = await this.fs.get(owner, id(raw));
-    return { node: toDto(node), path: await this.fs.breadcrumbs(owner, node.id) };
+    const [dto] = await this.withAvailability([node]);
+    return { node: dto, path: await this.fs.breadcrumbs(owner, node.id) };
   }
 
   @Post('folders')
@@ -176,11 +179,18 @@ export class FilesController {
     });
   }
 
+  private async withAvailability(nodes: NodeRow[]) {
+    const bad = await this.files.unavailable(
+      nodes.filter((n) => n.type === 'file').map((n) => n.id),
+    );
+    return nodes.map((n) => toDto(n, bad.has(n.id)));
+  }
+
   // ── Trash ────────────────────────────────────────────────────────────────────────────────────
 
   @Get('trash')
   async listTrash(@Req() req: AuthedRequest) {
-    return { items: (await this.fs.listTrash(req.auth!.user.id)).map(toDto) };
+    return { items: (await this.fs.listTrash(req.auth!.user.id)).map((n) => toDto(n)) };
   }
 
   @Post('trash/:id/restore')

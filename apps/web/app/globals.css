@@ -1,5 +1,91 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Colour tokens. Text/background pairs are chosen for WCAG AA contrast in both themes. */
 :root {
-  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1f1f1f;
+  --muted: #5f6368;
+  --surface: #f6f8fc;
+  --surface-hover: #e9eef6;
+  --line: #dadce0;
+  --primary: #0b57d0;
+  --on-primary: #ffffff;
+  --primary-soft: #d3e3fd;
+  --on-primary-soft: #041e49;
+  --danger: #b3261e;
+  --danger-soft: #f9dedc;
+  --ok: #146c2e;
+  --ok-soft: #c4eed0;
+  --warn: #7a4a00;
+  --warn-soft: #ffdfa6;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #131314;
+  --fg: #e3e3e3;
+  --muted: #a8abb0;
+  --surface: #1e1f20;
+  --surface-hover: #2b2c2e;
+  --line: #3c4043;
+  --primary: #a8c7fa;
+  --on-primary: #062e6f;
+  --primary-soft: #0842a0;
+  --on-primary-soft: #d3e3fd;
+  --danger: #f2b8b5;
+  --danger-soft: #601410;
+  --ok: #6dd58c;
+  --ok-soft: #0f5223;
+  --warn: #ffd180;
+  --warn-soft: #5c3b00;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-line: var(--line);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-on-primary-soft: var(--on-primary-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -387,6 +387,17 @@ describe.skipIf(!url)('pool behaviour over HTTP', () => {
     const [row] = await h.db.select().from(storageAccounts).where(eq(storageAccounts.id, a.id));
     expect(row!.status).toBe('DEGRADED');
 
+    // The listing flags exactly the files that cannot be read, so the UI can grey them out.
+    const listed = (await h.call('GET', '/files', u)).json().items as Array<{
+      id: string;
+      unavailable: boolean;
+    }>;
+    expect(Object.fromEntries(listed.map((i) => [i.id, i.unavailable]))).toMatchObject({
+      [stored.id]: true,
+      [elsewhere.id]: false,
+    });
+    expect((await h.call('GET', `/files/${stored.id}`, u)).json().node.unavailable).toBe(true);
+
     const broken = await h.call('GET', `/files/${stored.id}/content`, u);
     expect(broken.statusCode).toBe(503);
     expect(broken.json()).toMatchObject({ code: 'file_unavailable' });
