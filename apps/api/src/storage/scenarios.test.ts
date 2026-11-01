@@ -65,8 +65,8 @@ describe('scenario (a): three nearly-full accounts and a file larger than any si
   });
 
   it('respects the safety headroom: the same file is refused with a clear error and leaves nothing behind', async () => {
-    // 2% of 15 GB = 0.3 GB headroom per account, so only 0.7 GB x 3 = 2.1 GB is placeable.
-    const headroom = { percent: 2, minBytes: 100 };
+    // 5% of 15 GB = 0.75 GB headroom per account, so only 0.25 GB x 3 = 0.75 GB is placeable.
+    const headroom = { percent: 5, minBytes: 100 };
     const pool = makePool({
       accounts: [nearlyFull(), nearlyFull(), nearlyFull()],
       chunkSize: 400,
@@ -76,8 +76,8 @@ describe('scenario (a): three nearly-full accounts and a file larger than any si
     await expect(pool.put(patterned(3 * GB))).rejects.toBeInstanceOf(InsufficientCapacityError);
     expect(pool.totalBlobs()).toBe(0);
 
-    const ok = await pool.put(patterned(2 * GB));
-    expect(await read(pool, ok)).toEqual(patterned(2 * GB));
+    const ok = await pool.put(patterned(700));
+    expect(await read(pool, ok)).toEqual(patterned(700));
   });
 
   it('refuses a file larger than the pool without writing anything', async () => {

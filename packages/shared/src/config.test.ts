@@ -15,7 +15,7 @@ describe('loadConfig', () => {
     const cfg = loadConfig(base);
     expect(cfg.API_PORT).toBe(4000);
     expect(cfg.CHUNK_SIZE_BYTES).toBe(64 * 1024 * 1024);
-    expect(cfg.HEADROOM_PERCENT).toBe(2);
+    expect(cfg.HEADROOM_PERCENT).toBe(5);
     expect(cfg.TRASH_RETENTION_DAYS).toBe(30);
   });
 
