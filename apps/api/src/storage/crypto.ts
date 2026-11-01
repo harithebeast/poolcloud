@@ -95,6 +95,31 @@ export class KeyRing {
     );
   }
 
+  /**
+   * Encrypts a small secret (e.g. an OAuth refresh token) for storage at rest as `keyId.base64`.
+   * `context` is bound into the authenticated data so a value cannot be swapped between records.
+   */
+  sealSecret(secret: string, context: string): string {
+    const { nonce, data } = seal(
+      this.get(this.activeKeyId),
+      Buffer.from(secret, 'utf8'),
+      `secret|${context}`,
+    );
+    return `${this.activeKeyId}.${Buffer.concat([nonce, data]).toString('base64')}`;
+  }
+
+  openSecret(sealed: string, context: string): string {
+    const dot = sealed.indexOf('.');
+    if (dot < 1) throw new IntegrityError('malformed sealed secret');
+    const raw = Buffer.from(sealed.slice(dot + 1), 'base64');
+    return open(
+      this.get(sealed.slice(0, dot)),
+      raw.subarray(0, NONCE_BYTES),
+      raw.subarray(NONCE_BYTES),
+      `secret|${context}`,
+    ).toString('utf8');
+  }
+
   private get(keyId: string): Buffer {
     const key = this.keys.get(keyId);
     if (!key) throw new IntegrityError(`Unknown master key id ${keyId}`);

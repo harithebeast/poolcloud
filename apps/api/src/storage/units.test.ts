@@ -77,6 +77,19 @@ describe('crypto', () => {
       expect(rotated.wrap(dek, 'f1').keyId).toBe('k2');
     });
 
+    it('seals secrets at rest, bound to their context, and survives rotation', () => {
+      const old = KeyRing.parse(`k1:${k(1)}`);
+      const sealed = old.sealSecret('1//refresh-token', 'account:a1');
+      expect(sealed).not.toContain('refresh-token');
+      expect(sealed.startsWith('k1.')).toBe(true);
+      expect(old.openSecret(sealed, 'account:a1')).toBe('1//refresh-token');
+      expect(() => old.openSecret(sealed, 'account:a2')).toThrow(IntegrityError);
+      expect(() => old.openSecret('garbage', 'account:a1')).toThrow(IntegrityError);
+      const rotated = KeyRing.parse(`k2:${k(2)},k1:${k(1)}`);
+      expect(rotated.openSecret(sealed, 'account:a1')).toBe('1//refresh-token');
+      expect(rotated.sealSecret('x', 'c').startsWith('k2.')).toBe(true);
+    });
+
     it('fails for unknown key ids, other files, and malformed config', () => {
       const ring = KeyRing.parse(`k1:${k(1)}`);
       const wrapped = ring.wrap(generateDataKey(), 'f1');
