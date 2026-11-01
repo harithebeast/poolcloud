@@ -47,5 +47,11 @@
   "files": [
     "dist",
     "drizzle"
-  ]
+  ],
+  "exports": {
+    "./jobs": {
+      "types": "./dist/jobs/context.d.ts",
+      "default": "./dist/jobs/context.js"
+    }
+  }
 }

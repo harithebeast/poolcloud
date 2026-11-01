@@ -157,6 +157,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@pooldrive/api':
+        specifier: workspace:*
+        version: link:../api
       '@pooldrive/shared':
         specifier: workspace:*
         version: link:../../packages/shared

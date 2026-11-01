@@ -1,5 +1,6 @@
 import { loadConfig } from '@pooldrive/shared';
-import { Worker } from 'bullmq';
+import { createMaintenanceJobs, JOB_NAMES, schedule, type JobName } from '@pooldrive/api/jobs';
+import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { createServer } from 'node:http';
 import pg from 'pg';
@@ -12,18 +13,35 @@ const cfg = loadConfig();
 const log = pino({ level: cfg.LOG_LEVEL, base: { service: 'worker' } });
 
 const redis = new Redis(cfg.REDIS_URL, { maxRetriesPerRequest: null });
-const pool = new pg.Pool({ connectionString: cfg.DATABASE_URL, max: 4 });
+const pool = new pg.Pool({ connectionString: cfg.DATABASE_URL, max: 2 });
+const { jobs, close: closeJobs } = createMaintenanceJobs(cfg, (event, data) =>
+  log.info(data, event),
+);
+
+const isJob = (name: string): name is JobName => (JOB_NAMES as readonly string[]).includes(name);
 
 const worker = new Worker(
   MAINTENANCE_QUEUE,
-  (job) => {
-    // Job handlers (quota sync, trash purge, chunk cleanup, orphan scan) are registered per phase.
-    log.warn({ jobId: job.id, name: job.name }, 'no handler registered for job');
-    return Promise.resolve();
+  async (job) => {
+    if (!isJob(job.name)) throw new Error(`unknown job ${job.name}`);
+    const started = Date.now();
+    const result = await jobs.run(job.name);
+    log.info({ job: job.name, ms: Date.now() - started, result }, 'job finished');
   },
-  { connection: redis },
+  { connection: redis, concurrency: 2 },
 );
-worker.on('failed', (job, err) => log.error({ jobId: job?.id, err: err.message }, 'job failed'));
+worker.on('failed', (job, err) => log.error({ job: job?.name, err: err.message }, 'job failed'));
+
+// Repeatable schedules live in Redis, so restarting or running several workers never duplicates them.
+const queue = new Queue(MAINTENANCE_QUEUE, { connection: redis });
+const everySeconds = schedule(cfg.QUOTA_SYNC_INTERVAL_SECONDS);
+for (const name of JOB_NAMES) {
+  await queue.upsertJobScheduler(
+    name,
+    { every: everySeconds[name] * 1000 },
+    { name, opts: { removeOnComplete: 50, removeOnFail: 200 } },
+  );
+}
 
 const health = createServer((req, res) => {
   const send = (code: number, body: unknown) => {
@@ -39,12 +57,16 @@ const health = createServer((req, res) => {
   }
   send(404, { error: 'not found' });
 });
-health.listen(HEALTH_PORT, '0.0.0.0', () => log.info({ port: HEALTH_PORT }, 'worker started'));
+health.listen(HEALTH_PORT, '0.0.0.0', () =>
+  log.info({ port: HEALTH_PORT, jobs: everySeconds }, 'worker started'),
+);
 
 async function shutdown(signal: string): Promise<void> {
   log.info({ signal }, 'shutting down');
   health.close();
   await worker.close();
+  await queue.close();
+  await closeJobs();
   await pool.end();
   await redis.quit();
   process.exit(0);

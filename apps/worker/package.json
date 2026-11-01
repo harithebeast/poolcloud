@@ -12,6 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@pooldrive/api": "workspace:*",
     "@pooldrive/shared": "workspace:*",
     "bullmq": "^6.5.3",
     "ioredis": "^6.0.0",

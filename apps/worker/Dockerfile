@@ -4,7 +4,7 @@ RUN corepack enable
 WORKDIR /repo
 COPY . .
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
-RUN pnpm --filter @pooldrive/shared build && pnpm --filter @pooldrive/worker build
+RUN pnpm --filter @pooldrive/shared build && pnpm --filter @pooldrive/api build && pnpm --filter @pooldrive/worker build
 RUN pnpm --filter @pooldrive/worker deploy --legacy --prod /out
 
 FROM node:22-alpine
