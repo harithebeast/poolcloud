@@ -8,12 +8,20 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       provider: 'v8',
-      // Core domain logic. The Drive client wrapper is a thin SDK adapter exercised manually (see
-      // docs/google-setup.md); its retry/error/upload logic lives in tested modules.
-      include: ['src/storage/**/*.ts'],
+      // Everything except wiring (modules, main, composition roots) and the Drive SDK adapter, which
+      // is exercised manually (see docs/google-setup.md); its retry/error/upload logic is tested.
+      // The suite needs TEST_DATABASE_URL (CI provides Postgres); without it DB tests skip and the
+      // gate below will fail, which is intended.
+      include: ['src/**/*.ts'],
       exclude: [
-        'src/storage/**/*.test.ts',
-        'src/storage/testing/**',
+        'src/**/*.test.ts',
+        'src/**/testing/**',
+        'src/main.ts',
+        'src/**/*.module.ts',
+        'src/db/migrate.ts',
+        'src/db/schema.ts',
+        'src/jobs/context.ts',
+        'src/accounts/provider-factory.ts',
         'src/storage/stores.ts',
         'src/storage/provider.ts',
         'src/storage/google-drive-provider.ts',
