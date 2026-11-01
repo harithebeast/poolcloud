@@ -44,13 +44,19 @@ Indexes (documented again in `docs/architecture.md`): `nodes(owner_id,parent_id,
 
 ## 3. API outline (`/api/v1`)
 
-Auth: `POST /auth/setup` (first run), `/auth/login`, `/auth/logout`, `GET /auth/me`.
-Accounts: `GET /accounts`, `POST /accounts/google/start` (also re-authorise, with `accountId`), `GET /accounts/google/callback`, `DELETE /accounts/:id` (migration job), `GET /storage/usage`.
-FS: `GET /nodes?parent=&cursor=&sort=`, `POST /folders`, `PATCH /nodes/:id` (rename/move), `DELETE /nodes/:id` (trash), `POST /nodes/:id/restore`, `DELETE /trash/:id` (purge), `GET /search?q=`.
-Upload: `POST /uploads`, `PUT /uploads/:id/parts/:n`, `GET /uploads/:id` (resume state), `POST /uploads/:id/complete`, `DELETE /uploads/:id`.
-Download: `GET /nodes/:id/content` (Range), `GET /nodes/:id/preview`.
-Sharing: `POST /nodes/:id/shares`, `DELETE /shares/:id`, `GET /s/:token` (public meta), `POST /s/:token/download`.
-Ops: `/health/live`, `/health/ready`, `/metrics`, `/docs` (OpenAPI).
+Implemented as of Phase 2 (interactive docs at `/docs` outside production):
+
+- Auth: `GET /auth/status`, `POST /auth/setup` (first run only), `/auth/login`, `/auth/logout`, `GET /auth/me`, `POST /auth/users` (admin).
+- Accounts (admin): `GET /accounts`, `POST /accounts/google/start` (also re-authorise, with `accountId`), `GET /accounts/google/callback`. `GET /storage/usage` for everyone.
+- Files: `GET /files?parentId=`, `GET /files/:id`, `GET /files/search?q=`, `POST /folders`, `PATCH /files/:id` (rename / move / `encryptByDefault`), `DELETE /files/:id` (trash).
+- Upload: `POST /files/upload?name=&parentId=&encrypt=` with `Idempotency-Key` and `Content-Length`; the body is the file (ADR-0005).
+- Download: `GET /files/:id/content[?download=1]` (`Range` for whole, unencrypted files).
+- Trash: `GET /trash`, `POST /trash/:id/restore`, `DELETE /trash/:id`, `DELETE /trash`.
+- Sharing: `POST /shares`, `GET /shares?nodeId=`, `DELETE /shares/:id`; public `GET /public/shares/:token`, `POST /public/shares/:token/unlock`, `GET /public/shares/:token/content`.
+- Alerts: `GET /alerts`, `DELETE /alerts/:id`.
+- Ops: `/health/live`, `/health/ready`, `/metrics` (optional bearer `METRICS_TOKEN`).
+
+Still to come: `DELETE /accounts/:id` (removal with data migration, Phase 4).
 
 ## 4. Risks and mitigations
 
@@ -65,10 +71,11 @@ Ops: `/health/live`, `/health/ready`, `/metrics`, `/docs` (OpenAPI).
 | Crash mid-upload leaves remote blobs                                                                                        | Outbox (`remote_cleanup`) written **before** upload starts, removed on commit; worker deletes leftovers                                                                                                                                                                              |
 | Default 5% headroom means the "3 accounts x 1 GB free + 3 GB file" case cannot fit: usable = 3 x (1 GB - 0.75 GB) = 0.75 GB | Scenario (a) runs with headroom 0 (exact edge) and a second test proves the default refuses with `InsufficientCapacityError` and leaves nothing behind. Set `HEADROOM_PERCENT=0 HEADROOM_MIN_BYTES=0` to use every byte; this is a safety/capacity trade-off the owner should choose |
 | Fixed-size chunks strand up to one chunk of free space per account                                                          | Chunk size adapts: when no account has room for a full chunk the next chunk shrinks to the best account's remaining space. GCM AAD therefore authenticates `isLast` instead of a chunk count                                                                                         |
-| Encrypted chunks are buffered whole (GCM must verify before releasing plaintext)                                            | Memory per active encrypted transfer is about 2x `CHUNK_SIZE_BYTES`; lower the chunk size if many concurrent encrypted transfers are expected. Concurrency limits arrive with the API                                                                                                |
+| Encrypted records are buffered whole on download (GCM must verify before releasing plaintext)                               | Encrypted files are stored in records of at most `ENCRYPTED_CHUNK_BYTES` (default 16 MiB), so a download holds about 2x that. Uploads stream through the cipher and buffer nothing (ADR-0004)                                                                                        |
 | Non-retryable upload streams: a failed chunk upload cannot replay a consumed unencrypted stream                             | Drive uploads are resumable in 8 MiB pieces held in memory, so transient failures resume mid-chunk; a hard failure aborts and rolls back the whole upload (client retries idempotently)                                                                                              |
+| Uploads are one streaming request, not client-resumable parts (ADR-0005)                                                    | A dropped browser connection restarts that file; Drive-side pieces still resume. The idempotency key makes the retry safe. Revisit with tus-style parts if large flaky uploads matter                                                                                                |
 | Docker Desktop daemon availability on dev PC                                                                                | Gate verification via Compose requires it running                                                                                                                                                                                                                                    |
-| 5 GB / 300 MB RSS                                                                                                           | Streams only, 1–4 MiB buffers, `highWaterMark` bounded, tested with fake provider that discards data                                                                                                                                                                                 |
+| 5 GB / 300 MB RSS                                                                                                           | Streams only. `pnpm --filter @pooldrive/api test:memory` moves 5 GB each way over HTTP with a disk-backed provider and samples RSS. Measured: plain 206 MB peak, encrypted 261 MB peak (server and test client in one process)                                                       |
 
 ## 5. Phases
 
