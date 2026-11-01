@@ -25,6 +25,6 @@ import { LoginThrottle, RedisCounterStore } from './throttle.js';
     },
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
-  exports: [AuthService],
+  exports: [AuthService, LoginThrottle],
 })
 export class AuthModule {}

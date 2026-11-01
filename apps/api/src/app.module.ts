@@ -6,6 +6,7 @@ import { APP_CONFIG, ConfigModule, type AppConfig } from './config/config.module
 import { DbModule } from './db/db.module.js';
 import { AccountsModule } from './accounts/accounts.module.js';
 import { FilesModule } from './files/files.module.js';
+import { SharesModule } from './shares/shares.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { HealthController } from './health/health.controller.js';
 
@@ -17,6 +18,7 @@ import { HealthController } from './health/health.controller.js';
     AuthModule,
     AccountsModule,
     FilesModule,
+    SharesModule,
     LoggerModule.forRootAsync({
       inject: [APP_CONFIG],
       useFactory: (cfg: AppConfig) => ({

@@ -25,6 +25,8 @@ import { FakeProvider } from '../storage/fake-provider.js';
 import { PgAccountStore, PgCleanupOutbox } from '../storage/pg-stores.js';
 import { QuotaSyncService } from '../storage/quota-sync.js';
 import { UploadService, type StorageSettings } from '../storage/upload-service.js';
+import { PublicSharesController, SharesController } from '../shares/shares.controller.js';
+import { SharesService } from '../shares/shares.service.js';
 import { createTestDb } from './test-db.js';
 
 export const PASSWORD = 'a-long-enough-passphrase';
@@ -32,6 +34,8 @@ export const PASSWORD = 'a-long-enough-passphrase';
 export interface HarnessOptions {
   /** Storage settings; tests use tiny chunk sizes so files split. */
   settings?: Partial<StorageSettings>;
+  /** Attempts allowed per window by the login/share throttle (default: effectively unlimited). */
+  throttleMax?: number;
 }
 
 export interface Session {
@@ -100,17 +104,28 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
   });
   const downloads = new DownloadService({ accounts: store, providers: registry.get, keyRing });
   const files = new FilesService({ db: testDb.db, fs, uploads, downloads });
+  const shares = new SharesService({ db: testDb.db, fs, secret: cfg.SESSION_SECRET });
   const cleanup = new CleanupService({ outbox, providers: registry.get });
   const quotaSync = new QuotaSyncService({ accounts: store, providers: registry.get });
 
   const mod = await Test.createTestingModule({
-    controllers: [AuthController, AccountsController, FilesController],
+    controllers: [
+      AuthController,
+      AccountsController,
+      FilesController,
+      SharesController,
+      PublicSharesController,
+    ],
     providers: [
       { provide: AuthService, useValue: auth },
       { provide: AccountsService, useValue: accounts },
       { provide: FsService, useValue: fs },
       { provide: FilesService, useValue: files },
-      { provide: LoginThrottle, useValue: new LoginThrottle(new MemoryCounterStore(), 1000, 60) },
+      { provide: SharesService, useValue: shares },
+      {
+        provide: LoginThrottle,
+        useValue: new LoginThrottle(new MemoryCounterStore(), options.throttleMax ?? 1000, 60),
+      },
       { provide: APP_CONFIG, useValue: cfg },
       { provide: APP_GUARD, useClass: AuthGuard },
       { provide: APP_FILTER, useClass: DomainErrorsFilter },
@@ -191,6 +206,7 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
     files,
     uploads,
     cleanup,
+    shares,
     quotaSync,
     store,
     providers,
