@@ -8,6 +8,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { randomUUID } from 'node:crypto';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
+import { registerStreamParsers } from './common/stream-parser.js';
 import { APP_CONFIG, type AppConfig } from './config/config.module.js';
 
 async function bootstrap(): Promise<void> {
@@ -28,6 +29,7 @@ async function bootstrap(): Promise<void> {
     hsts: { maxAge: 31_536_000, includeSubDomains: true },
   });
   await app.register(fastifyCookie);
+  registerStreamParsers(app.getHttpAdapter().getInstance());
   await app.register(fastifyRateLimit, { max: 300, timeWindow: '1 minute' });
   app.enableCors({ origin: cfg.WEB_ORIGIN, credentials: true });
   app.setGlobalPrefix('api/v1', { exclude: ['health/(.*)', 'metrics'] });

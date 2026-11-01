@@ -5,6 +5,7 @@ import { RedisModule } from './common/redis.module.js';
 import { APP_CONFIG, ConfigModule, type AppConfig } from './config/config.module.js';
 import { DbModule } from './db/db.module.js';
 import { AccountsModule } from './accounts/accounts.module.js';
+import { FilesModule } from './files/files.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { HealthController } from './health/health.controller.js';
 
@@ -15,6 +16,7 @@ import { HealthController } from './health/health.controller.js';
     RedisModule,
     AuthModule,
     AccountsModule,
+    FilesModule,
     LoggerModule.forRootAsync({
       inject: [APP_CONFIG],
       useFactory: (cfg: AppConfig) => ({
