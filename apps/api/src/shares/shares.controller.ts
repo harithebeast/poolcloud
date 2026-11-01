@@ -95,6 +95,7 @@ export class PublicSharesController {
     private readonly shares: SharesService,
     private readonly files: FilesService,
     private readonly throttle: LoginThrottle,
+    @Inject(APP_CONFIG) private readonly cfg: AppConfig,
   ) {}
 
   private async resolve(token: string) {
@@ -165,6 +166,7 @@ export class PublicSharesController {
       range: opened.range,
       acceptRanges: opened.supportsRange,
       attachment: download === '1' || download === 'true',
+      embedOrigin: this.cfg.WEB_ORIGIN,
     });
   }
 }

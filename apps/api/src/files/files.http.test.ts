@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fileChunks, nodes, remoteCleanup, storageAccounts, uploads } from '../db/schema.js';
+import { contentSecurityPolicy } from './files.controller.js';
 import { createHarness, type Harness, type Session } from '../testing/http-harness.js';
 import { patterned, pieces } from '../storage/testing/harness.js';
 
@@ -41,6 +42,23 @@ describe.skipIf(!url)('files over HTTP', () => {
     expect(dl.headers['x-content-type-options']).toBe('nosniff');
     expect(String(dl.headers['content-security-policy'])).toMatch(/sandbox/);
     expect(dl.headers['accept-ranges']).toBe('bytes');
+  });
+
+  it('lets only the web app embed previews, and keeps PDFs viewable', async () => {
+    const pdf = (await h.upload(alice, 'doc.pdf', Buffer.from('%PDF-1.4 test'))).json();
+    const res = await h.call('GET', `/files/${pdf.id}/content`, alice);
+    expect(res.headers['content-type']).toBe('application/pdf');
+    expect(res.headers['cross-origin-resource-policy']).toBe('same-site');
+    const csp = String(res.headers['content-security-policy']);
+    expect(csp).toContain('frame-ancestors http://localhost:3000');
+    expect(csp).not.toMatch(/sandbox/); // Chrome's PDF viewer does not run in a sandbox
+    expect(csp).not.toMatch(/script-src|default-src 'self'/);
+
+    const asDownload = await h.call('GET', `/files/${pdf.id}/content?download=1`, alice);
+    expect(String(asDownload.headers['content-security-policy'])).toMatch(/^sandbox;/);
+    expect(contentSecurityPolicy('text/plain', true, 'https://app.example')).toMatch(
+      /^sandbox; .*frame-ancestors https:\/\/app\.example$/,
+    );
   });
 
   it('serves byte ranges for whole files and rejects bad ranges', async () => {

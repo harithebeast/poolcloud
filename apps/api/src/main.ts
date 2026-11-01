@@ -33,7 +33,14 @@ async function bootstrap(): Promise<void> {
   registerStreamParsers(app.getHttpAdapter().getInstance());
   app.get(MetricsService).attach(app.getHttpAdapter().getInstance());
   await app.register(fastifyRateLimit, { max: 300, timeWindow: '1 minute' });
-  app.enableCors({ origin: cfg.WEB_ORIGIN, credentials: true });
+  app.enableCors({
+    origin: cfg.WEB_ORIGIN,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['content-type', 'x-csrf-token', 'idempotency-key', 'range'],
+    exposedHeaders: ['content-range', 'content-length', 'content-disposition', 'accept-ranges'],
+    maxAge: 600,
+  });
   app.setGlobalPrefix('api/v1', { exclude: ['health/(.*)', 'metrics'] });
 
   if (cfg.NODE_ENV !== 'production') {

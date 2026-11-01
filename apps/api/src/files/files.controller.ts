@@ -7,6 +7,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Inject,
   Param,
   Patch,
   Post,
@@ -18,6 +19,7 @@ import { ApiTags } from '@nestjs/swagger';
 import type { FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { parseBody } from '../auth/auth.controller.js';
+import { APP_CONFIG, type AppConfig } from '../config/config.module.js';
 import type { AuthedRequest } from '../auth/auth.guard.js';
 import { FsService, type NodeRow } from '../fs/fs.service.js';
 import { FilesService } from './files.service.js';
@@ -65,6 +67,7 @@ export class FilesController {
   constructor(
     private readonly fs: FsService,
     private readonly files: FilesService,
+    @Inject(APP_CONFIG) private readonly cfg: AppConfig,
   ) {}
 
   @Get('files')
@@ -169,6 +172,7 @@ export class FilesController {
       range: opened.range,
       acceptRanges: opened.supportsRange,
       attachment: download === '1' || download === 'true',
+      embedOrigin: this.cfg.WEB_ORIGIN,
     });
   }
 
@@ -200,7 +204,13 @@ export async function sendFile(
   reply: FastifyReply,
   node: NodeRow,
   stream: Readable,
-  opts: { range?: { start: number; end: number }; acceptRanges: boolean; attachment: boolean },
+  opts: {
+    range?: { start: number; end: number };
+    acceptRanges: boolean;
+    attachment: boolean;
+    /** The web app's origin: the only page allowed to embed this response (previews). */
+    embedOrigin: string;
+  },
 ): Promise<void> {
   const mime = node.mime ?? mimeFor(node.name);
   const inline = !opts.attachment && isPreviewable(mime);
@@ -213,12 +223,11 @@ export async function sendFile(
     .header('content-disposition', contentDisposition(node.name, inline))
     .header('accept-ranges', opts.acceptRanges ? 'bytes' : 'none')
     .header('x-content-type-options', 'nosniff')
-    // Even previewable types render in a locked-down sandbox: no script, no network.
-    .header(
-      'content-security-policy',
-      "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; media-src 'self'",
-    )
+    .header('content-security-policy', contentSecurityPolicy(mime, inline, opts.embedOrigin))
+    // The web app (another origin on the same site) shows these in <img>/<iframe>/<video>.
+    .header('cross-origin-resource-policy', 'same-site')
     .header('cache-control', 'private, no-store');
+  reply.removeHeader('x-frame-options'); // superseded by frame-ancestors below
   if (opts.range) {
     reply.header('content-range', `bytes ${opts.range.start}-${opts.range.end}/${node.size}`);
   }
@@ -233,4 +242,14 @@ export async function sendFile(
   } catch {
     res.destroy();
   }
+}
+
+/**
+ * Locked-down policy for served files: no script, no network. Everything renders in a sandbox except
+ * PDFs, whose built-in viewer does not run under `sandbox`; a PDF is still script-free here and can
+ * only be framed by the web app.
+ */
+export function contentSecurityPolicy(mime: string, inline: boolean, embedOrigin: string): string {
+  const base = `default-src 'none'; style-src 'unsafe-inline'; img-src data:; media-src 'self'; frame-ancestors ${embedOrigin}`;
+  return inline && mime === 'application/pdf' ? base : `sandbox; ${base}`;
 }
