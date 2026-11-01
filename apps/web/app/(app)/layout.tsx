@@ -41,7 +41,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   if (!session.data) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted" role="status">
+      <div
+        className="flex min-h-screen items-center justify-center text-sm text-muted"
+        role="status"
+      >
         Loading…
       </div>
     );
@@ -69,7 +72,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </header>
 
         <div className="flex min-h-0 flex-1">
-          <aside aria-label="Sidebar" className="flex w-16 shrink-0 flex-col gap-4 px-2 py-2 md:w-60 md:px-3">
+          <aside
+            aria-label="Sidebar"
+            className="flex w-16 shrink-0 flex-col gap-4 px-2 py-2 md:w-60 md:px-3"
+          >
             <div className="flex justify-center md:justify-start">
               <NewMenu />
             </div>
@@ -107,7 +113,9 @@ function Nav() {
                 title={label}
                 className={cn(
                   'flex h-10 items-center justify-center gap-3 rounded-full px-3 text-sm md:justify-start',
-                  active ? 'bg-primary-soft font-medium text-on-primary-soft' : 'hover:bg-surface-hover',
+                  active
+                    ? 'bg-primary-soft font-medium text-on-primary-soft'
+                    : 'hover:bg-surface-hover',
                 )}
               >
                 <Icon size={20} aria-hidden />
@@ -145,7 +153,11 @@ function SearchBox() {
   }
   return (
     <form role="search" onSubmit={submit} className="relative max-w-2xl flex-1">
-      <Search size={18} aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
+      <Search
+        size={18}
+        aria-hidden
+        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+      />
       <input
         type="search"
         aria-label="Search files by name"
@@ -175,7 +187,11 @@ function UserMenu({ email }: { email: string }) {
         {email.slice(0, 1)}
       </Menu.Trigger>
       <Menu.Portal>
-        <Menu.Content align="end" sideOffset={6} className="z-40 min-w-56 rounded-xl border border-line bg-bg p-1 shadow-lg">
+        <Menu.Content
+          align="end"
+          sideOffset={6}
+          className="z-40 min-w-56 rounded-xl border border-line bg-bg p-1 shadow-lg"
+        >
           <div className="truncate px-3 py-2 text-xs text-muted">{email}</div>
           <Menu.Item
             onSelect={() => void logout()}

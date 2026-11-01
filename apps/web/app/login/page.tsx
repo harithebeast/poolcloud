@@ -45,7 +45,10 @@ export default function LoginPage() {
     if (setup && password !== confirm) return setError('The passwords do not match.');
     setBusy(true);
     try {
-      const session = await post<Session>(setup ? '/auth/setup' : '/auth/login', { email, password });
+      const session = await post<Session>(setup ? '/auth/setup' : '/auth/login', {
+        email,
+        password,
+      });
       setCsrfToken(session.csrfToken);
       qc.setQueryData(['me'], session);
       router.replace('/files');
@@ -84,7 +87,8 @@ export default function LoginPage() {
             </h1>
             {setup && (
               <p className="text-sm text-muted">
-                Welcome! This is the first run. The account you create here manages the storage pool.
+                Welcome! This is the first run. The account you create here manages the storage
+                pool.
               </p>
             )}
             <Field

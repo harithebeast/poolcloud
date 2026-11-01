@@ -62,8 +62,14 @@ export async function request<T>(
     if (res.status === 401 && !path.startsWith('/auth/')) {
       window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     }
-    const message = typeof data.message === 'string' ? data.message : `Request failed (${res.status})`;
-    throw new ApiError(res.status, typeof data.code === 'string' ? data.code : 'error', message, data);
+    const message =
+      typeof data.message === 'string' ? data.message : `Request failed (${res.status})`;
+    throw new ApiError(
+      res.status,
+      typeof data.code === 'string' ? data.code : 'error',
+      message,
+      data,
+    );
   }
   return data as T;
 }

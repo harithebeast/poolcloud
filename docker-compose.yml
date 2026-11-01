@@ -70,9 +70,12 @@ services:
     restart: unless-stopped
 
   web:
-    build: { context: ., dockerfile: apps/web/Dockerfile }
-    environment:
-      API_URL: http://api:4000
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # The browser calls the API directly; this address is baked into the web build.
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4000/api/v1}
     ports: ['3000:3000']
     depends_on:
       api: { condition: service_healthy }

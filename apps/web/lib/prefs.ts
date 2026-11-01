@@ -3,14 +3,17 @@ import { useCallback, useSyncExternalStore } from 'react';
 
 /** A boolean preference kept in localStorage and shared across components and tabs. */
 function usePref(key: string, fallback: boolean): [boolean, (v: boolean) => void] {
-  const subscribe = useCallback((cb: () => void) => {
-    window.addEventListener('storage', cb);
-    window.addEventListener(`pref:${key}`, cb);
-    return () => {
-      window.removeEventListener('storage', cb);
-      window.removeEventListener(`pref:${key}`, cb);
-    };
-  }, [key]);
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      window.addEventListener('storage', cb);
+      window.addEventListener(`pref:${key}`, cb);
+      return () => {
+        window.removeEventListener('storage', cb);
+        window.removeEventListener(`pref:${key}`, cb);
+      };
+    },
+    [key],
+  );
   const value = useSyncExternalStore(
     subscribe,
     () => localStorage.getItem(key) ?? String(fallback),

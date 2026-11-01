@@ -39,7 +39,11 @@ export function UploadPanel() {
             aria-expanded={!collapsed}
             onClick={() => setCollapsed((c) => !c)}
           >
-            {collapsed ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
+            {collapsed ? (
+              <ChevronUp size={16} aria-hidden />
+            ) : (
+              <ChevronDown size={16} aria-hidden />
+            )}
           </Button>
           {active === 0 && (
             <Button
@@ -74,7 +78,12 @@ function Row({
   onCancel: (id: string) => void;
   onRetry: (id: string) => void;
 }) {
-  const pct = item.size === 0 ? (item.status === 'done' ? 100 : 0) : Math.round((item.loaded / item.size) * 100);
+  const pct =
+    item.size === 0
+      ? item.status === 'done'
+        ? 100
+        : 0
+      : Math.round((item.loaded / item.size) * 100);
   return (
     <li className="px-4 py-2 text-sm">
       <div className="flex items-center gap-2">
@@ -111,14 +120,23 @@ function Row({
             aria-label={`Uploading ${item.name}`}
             className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-hover"
           >
-            <Progress.Indicator className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+            <Progress.Indicator
+              className="h-full bg-primary transition-all"
+              style={{ width: `${pct}%` }}
+            />
           </Progress.Root>
           <p className="mt-1 text-xs text-muted">
-            {item.status === 'queued' ? 'Waiting…' : `${formatBytes(item.loaded)} of ${formatBytes(item.size)}`}
+            {item.status === 'queued'
+              ? 'Waiting…'
+              : `${formatBytes(item.loaded)} of ${formatBytes(item.size)}`}
           </p>
         </>
       ) : (
-        <p className={item.status === 'error' ? 'mt-1 text-xs text-danger' : 'mt-1 text-xs text-muted'}>
+        <p
+          className={
+            item.status === 'error' ? 'mt-1 text-xs text-danger' : 'mt-1 text-xs text-muted'
+          }
+        >
           {item.status === 'error'
             ? item.error
             : item.status === 'cancelled'

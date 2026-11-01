@@ -36,7 +36,10 @@ export function Dialog({
                 {description ?? title}
               </D.Description>
             </div>
-            <D.Close aria-label="Close" className="rounded-full p-2 text-muted hover:bg-surface-hover">
+            <D.Close
+              aria-label="Close"
+              className="rounded-full p-2 text-muted hover:bg-surface-hover"
+            >
               <X size={18} aria-hidden />
             </D.Close>
           </div>

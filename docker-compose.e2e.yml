@@ -1,0 +1,20 @@
+# Isolated stack for the Playwright end-to-end tests: fake Google, other ports, throwaway data.
+#   docker compose -p pooldrive-e2e -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
+# It never touches your real data (separate project name, volumes and ports).
+x-e2e-env: &e2e-env
+  STORAGE_PROVIDER: fake
+  WEB_ORIGIN: http://localhost:3100
+  API_PORT: 4000
+  GOOGLE_REDIRECT_URI: http://localhost:4100/api/v1/accounts/google/callback
+
+services:
+  api:
+    environment: *e2e-env
+    ports: !override ['4100:4000']
+  worker:
+    environment: *e2e-env
+  web:
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4100/api/v1
+    ports: !override ['3100:3000']

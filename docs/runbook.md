@@ -102,4 +102,12 @@ docker compose exec postgres pg_dump -U pooldrive pooldrive | gzip > pooldrive-$
 pnpm lint && pnpm format:check && pnpm typecheck
 TEST_DATABASE_URL=postgres://... pnpm test:ci      # needs a Postgres where the user may CREATE DATABASE; enforces coverage
 pnpm --filter @pooldrive/api test:memory           # 5 GB streaming check; set SIZE_GB=1 for a quicker run
+
+# Browser end-to-end tests (Playwright) on an isolated stack with fake Google, on ports 3100/4100.
+# It creates the first admin, so it needs a fresh database: always start from `down -v`.
+docker compose -p pooldrive-e2e -f docker-compose.yml -f docker-compose.e2e.yml down -v
+docker compose -p pooldrive-e2e -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
+pnpm --filter @pooldrive/web exec playwright install chromium   # once
+pnpm --filter @pooldrive/web test:e2e                          # journey + WCAG checks (axe) in light and dark
+docker compose -p pooldrive-e2e -f docker-compose.yml -f docker-compose.e2e.yml down -v
 ```

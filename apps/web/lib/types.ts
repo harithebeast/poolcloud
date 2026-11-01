@@ -8,6 +8,8 @@ export interface NodeDto {
   encrypted: boolean;
   encryptByDefault: boolean;
   trashedAt: string | null;
+  /** A Google account holding part of this file is offline. */
+  unavailable: boolean;
   createdAt: string;
   updatedAt: string;
 }
