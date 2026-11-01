@@ -62,3 +62,12 @@ export interface ShareDto {
   createdAt: string;
   url?: string;
 }
+
+/** Which Google account holds (part of) a file. The API only sends this to the admin. */
+export interface StoredIn {
+  accountId: string;
+  email: string;
+  status: 'HEALTHY' | 'DEGRADED' | 'DISCONNECTED' | 'DRAINING';
+  parts: number;
+  bytes: number;
+}

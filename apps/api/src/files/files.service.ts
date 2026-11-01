@@ -217,6 +217,27 @@ export class FilesService {
   }
 
   /**
+   * Which Google accounts hold this file's pieces (one entry per account). Whole files have a
+   * single entry with one part; split files list every account that holds a part.
+   */
+  async locations(fileId: string) {
+    const rows = await this.deps.db
+      .select({
+        accountId: storageAccounts.id,
+        email: storageAccounts.email,
+        status: storageAccounts.status,
+        parts: sql<number>`count(*)::int`,
+        bytes: sql<number>`coalesce(sum(${fileChunks.size}), 0)::float8`,
+      })
+      .from(fileChunks)
+      .innerJoin(storageAccounts, eq(storageAccounts.id, fileChunks.accountId))
+      .where(eq(fileChunks.fileId, fileId))
+      .groupBy(storageAccounts.id, storageAccounts.email, storageAccounts.status)
+      .orderBy(storageAccounts.email);
+    return rows.map((r) => ({ ...r, parts: Number(r.parts), bytes: Number(r.bytes) }));
+  }
+
+  /**
    * Which of these files cannot be read right now because a Google account holding part of them is
    * offline. Metadata is untouched; this only tells the UI what to grey out.
    */

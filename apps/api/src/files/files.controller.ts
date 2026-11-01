@@ -88,7 +88,12 @@ export class FilesController {
     const owner = req.auth!.user.id;
     const node = await this.fs.get(owner, id(raw));
     const [dto] = await this.withAvailability([node]);
-    return { node: dto, path: await this.fs.breadcrumbs(owner, node.id) };
+    // Which Gmail holds a file is shown to the admin only; other users just see their files.
+    const storedIn =
+      req.auth!.user.role === 'admin' && node.type === 'file'
+        ? await this.files.locations(node.id)
+        : undefined;
+    return { node: dto, path: await this.fs.breadcrumbs(owner, node.id), storedIn };
   }
 
   @Post('folders')

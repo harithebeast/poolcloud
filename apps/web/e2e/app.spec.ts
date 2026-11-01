@@ -232,7 +232,7 @@ test('search finds files by name', async () => {
   await expect(row(/dot\.png/)).toHaveCount(0);
 });
 
-test('details panel shows facts but never which account stores the file', async () => {
+test('details panel shows facts, including which Gmail stores the file', async () => {
   await page.getByRole('link', { name: 'My files' }).click();
   await row(/Docs/).dblclick();
   await row(/greeting\.txt/).click();
@@ -240,7 +240,10 @@ test('details panel shows facts but never which account stores the file', async 
   const details = page.getByRole('complementary', { name: 'Details' });
   await expect(details).toContainText('greeting.txt');
   await expect(details).toContainText('Not encrypted');
-  await expect(details).not.toContainText(/pool\.local|fake-|account/i);
+  // The admin is told which linked Gmail holds the file (a small file is stored whole in one).
+  await expect(details.getByText('Stored in')).toBeVisible();
+  await expect(details).toContainText(/fake-\d@pool\.local/);
+  await expect(details).toContainText('Whole file');
 });
 
 test('encrypted uploads are marked as such', async () => {

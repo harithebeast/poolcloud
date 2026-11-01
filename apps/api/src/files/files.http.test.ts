@@ -61,6 +61,24 @@ describe.skipIf(!url)('files over HTTP', () => {
     );
   });
 
+  it('tells the admin which Gmail holds a file, and nobody else', async () => {
+    const small = (await h.upload(alice, 'where.txt', patterned(50))).json();
+    const whole = (await h.call('GET', `/files/${small.id}`, alice)).json();
+    expect(whole.storedIn).toHaveLength(1);
+    expect(whole.storedIn[0]).toMatchObject({
+      email: expect.stringMatching(/@pool\.local$/),
+      status: 'HEALTHY',
+      parts: 1,
+      bytes: 50,
+    });
+    expect(JSON.stringify(whole.storedIn)).not.toMatch(/refresh|token|remote/i);
+
+    const folder = (
+      await h.call('POST', '/folders', alice, { body: { name: 'who-cares' } })
+    ).json();
+    expect((await h.call('GET', `/files/${folder.id}`, alice)).json().storedIn).toBeUndefined();
+  });
+
   it('serves byte ranges for whole files and rejects bad ranges', async () => {
     const data = patterned(1000);
     const node = (await h.upload(alice, 'range.bin', data)).json();
@@ -363,6 +381,14 @@ describe.skipIf(!url)('pool behaviour over HTTP', () => {
     expect(new Set(chunks.map((c) => c.accountId)).size).toBe(3);
     expect(body(await h.call('GET', `/files/${up.json().id}/content`, owner))).toEqual(data);
 
+    // The admin can see every Gmail that holds a piece of this split file.
+    const where = (await h.call('GET', `/files/${up.json().id}`, owner)).json().storedIn as Array<{
+      email: string;
+      bytes: number;
+    }>;
+    expect(where.map((w) => w.email)).toEqual(accts.map((a) => a.email).sort());
+    expect(where.reduce((n, w) => n + w.bytes, 0)).toBe(300);
+
     const over = await h.upload(owner, 'one-more.bin', patterned(1));
     expect(over.statusCode).toBe(507);
     expect(over.json().code).toBe('insufficient_storage');
@@ -397,6 +423,8 @@ describe.skipIf(!url)('pool behaviour over HTTP', () => {
       [elsewhere.id]: false,
     });
     expect((await h.call('GET', `/files/${stored.id}`, u)).json().node.unavailable).toBe(true);
+    // `u` is an ordinary user (not the admin), so which Gmail holds the file stays private.
+    expect((await h.call('GET', `/files/${stored.id}`, u)).json().storedIn).toBeUndefined();
 
     const broken = await h.call('GET', `/files/${stored.id}/content`, u);
     expect(broken.statusCode).toBe(503);
