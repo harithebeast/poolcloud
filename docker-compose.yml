@@ -28,23 +28,49 @@ services:
       POSTGRES_USER: pooldrive
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run node scripts/init-env.mjs}
       POSTGRES_DB: pooldrive
+    # A single-user pool needs very little: small caches and few connections (api 10 + worker 5).
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=30
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+    mem_limit: 256m
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U pooldrive -d pooldrive']
-      interval: 5s
+      interval: 15s
       timeout: 3s
       retries: 10
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    command: ['redis-server', '--appendonly', 'yes']
+    # Holds only the job queue and login counters. BullMQ needs noeviction; the worker re-creates
+    # its schedules at start-up, so persistence is optional and off to save disk writes.
+    command:
+      [
+        'redis-server',
+        '--save',
+        '',
+        '--appendonly',
+        'no',
+        '--maxmemory',
+        '64mb',
+        '--maxmemory-policy',
+        'noeviction',
+      ]
+    mem_limit: 96m
     volumes:
       - redisdata:/data
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
+      interval: 15s
       timeout: 3s
       retries: 10
     restart: unless-stopped
@@ -54,6 +80,11 @@ services:
     environment:
       <<: *app-env
       API_PORT: '4000'
+      # Heap cap; file bytes stream through off-heap buffers (measured: flat memory for 5 GB).
+      NODE_OPTIONS: --max-old-space-size=192
+    mem_limit: 512m
+    healthcheck:
+      interval: 30s
     ports: ['4000:4000']
     depends_on:
       postgres: { condition: service_healthy }
@@ -63,7 +94,12 @@ services:
 
   worker:
     build: { context: ., dockerfile: apps/worker/Dockerfile }
-    environment: *app-env
+    environment:
+      <<: *app-env
+      NODE_OPTIONS: --max-old-space-size=128
+    mem_limit: 256m
+    healthcheck:
+      interval: 30s
     depends_on:
       api: { condition: service_healthy }
     stop_grace_period: 30s
@@ -77,6 +113,11 @@ services:
         # The browser calls the API directly; this address is baked into the web build.
         NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4000/api/v1}
     ports: ['3000:3000']
+    environment:
+      NODE_OPTIONS: --max-old-space-size=128
+    mem_limit: 256m
+    healthcheck:
+      interval: 30s
     depends_on:
       api: { condition: service_healthy }
     restart: unless-stopped
