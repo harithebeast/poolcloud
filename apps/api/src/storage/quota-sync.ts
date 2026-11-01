@@ -16,7 +16,7 @@ export class QuotaSyncService {
     private readonly deps: {
       accounts: AccountStore;
       providers: ProviderResolver;
-      onDegraded?: (accountId: string, reason: string) => void;
+      onDegraded?: (accountId: string, reason: string) => void | Promise<void>;
     },
   ) {}
 
@@ -49,7 +49,7 @@ export class QuotaSyncService {
 
   private async degrade(accountId: string, reason: string): Promise<void> {
     await this.deps.accounts.setStatus(accountId, 'DEGRADED', reason);
-    this.deps.onDegraded?.(accountId, reason);
+    await this.deps.onDegraded?.(accountId, reason);
   }
 
   /** Pooled totals across usable accounts (what the UI's single bar shows). */

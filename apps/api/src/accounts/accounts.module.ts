@@ -1,19 +1,15 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_CONFIG, type AppConfig } from '../config/config.module.js';
 import { DB, type Db } from '../db/db.module.js';
-import { FakeProvider } from '../storage/fake-provider.js';
 import { KeyRing } from '../storage/crypto.js';
-import { GoogleDriveProvider } from '../storage/google-drive-provider.js';
-import type { StorageProvider } from '../storage/provider.js';
 import { AccountsController } from './accounts.controller.js';
 import { AccountsService } from './accounts.service.js';
 import { FakeLinkBackend, GoogleLinkBackend, LinkError, type LinkBackend } from './link-backend.js';
-import { ProviderRegistry, type AccountCredentials } from './provider-registry.js';
+import { providerFactory } from './provider-factory.js';
+import { ProviderRegistry } from './provider-registry.js';
 
 export const KEY_RING = Symbol('KEY_RING');
 export const LINK_BACKEND = Symbol('LINK_BACKEND');
-
-const FAKE_ACCOUNT_BYTES = 15 * 1024 ** 3;
 
 export function callbackUrl(cfg: AppConfig): string {
   return (
@@ -65,22 +61,9 @@ class UnconfiguredBackend implements LinkBackend {
       provide: AccountsService,
       inject: [DB, KEY_RING, LINK_BACKEND, APP_CONFIG],
       useFactory: (db: Db, keyRing: KeyRing, backend: LinkBackend, cfg: AppConfig) => {
-        const fakes = new Map<string, FakeProvider>(); // fake accounts keep their blobs across re-auth
         const registry = new ProviderRegistry({
           load: (id) => service.credentials(id),
-          make: (c: AccountCredentials): StorageProvider => {
-            if (cfg.STORAGE_PROVIDER === 'fake') {
-              let f = fakes.get(c.accountId);
-              if (!f) fakes.set(c.accountId, (f = new FakeProvider({ limit: FAKE_ACCOUNT_BYTES })));
-              return f;
-            }
-            return new GoogleDriveProvider({
-              clientId: cfg.GOOGLE_CLIENT_ID!,
-              clientSecret: cfg.GOOGLE_CLIENT_SECRET!,
-              refreshToken: c.refreshToken,
-              appFolderId: c.appFolderId,
-            });
-          },
+          make: providerFactory(cfg),
         });
         const service: AccountsService = new AccountsService({
           db,

@@ -7,6 +7,7 @@ import {
   ProviderAuthError,
   StorageError,
 } from './errors.js';
+import { DownloadService } from './download-service.js';
 import { QuotaSyncService } from './quota-sync.js';
 import { collect, makePool, patterned, pieces, read } from './testing/harness.js';
 
@@ -135,7 +136,7 @@ describe('scenario (b): an account goes DEGRADED mid-session', () => {
     await new QuotaSyncService({
       accounts: pool.store,
       providers: (id) => pool.providers.get(id)!,
-      onDegraded: (id) => degraded.push(id),
+      onDegraded: (id) => void degraded.push(id),
     }).syncOwner(pool.ownerId);
 
     expect(degraded).toEqual([victim]);
@@ -392,9 +393,29 @@ describe('downloads', () => {
     const pool = makePool({ accounts: [{ limit: 10 * GB }], chunkSize: 400 });
     const stored = await pool.put(patterned(100));
     pool.providers.get(pool.accountIds[0]!)!.setDown(true);
-    await expect(collect(await pool.downloads.open(pool.ownerId, stored))).rejects.toBeInstanceOf(
+    // Raised by open() itself, before any byte is produced, so HTTP can still send a clean error.
+    await expect(pool.downloads.open(pool.ownerId, stored)).rejects.toBeInstanceOf(
       ProviderAuthError,
     );
+  });
+
+  it('reports an auth failure on a LATER chunk while streaming, and notifies the health hook', async () => {
+    const failures: string[] = [];
+    const pool = makePool({ accounts: [{ limit: 10 * GB }, { limit: 10 * GB }], chunkSize: 400 });
+    const stored = await pool.put(patterned(1000), true);
+    const victim = stored.chunks.find(
+      (c) => c.accountId !== stored.chunks[0]!.accountId,
+    )!.accountId;
+    const downloads = new DownloadService({
+      accounts: pool.store,
+      providers: (id) => pool.providers.get(id)!,
+      keyRing: pool.keyRing,
+      onAuthFailure: (id) => Promise.resolve(void failures.push(id)),
+    });
+    const stream = await downloads.open(pool.ownerId, stored);
+    pool.providers.get(victim)!.setDown(true);
+    await expect(collect(stream)).rejects.toBeInstanceOf(ProviderAuthError);
+    expect(failures).toEqual([victim]);
   });
 });
 

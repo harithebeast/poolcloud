@@ -7,6 +7,7 @@ import { DbModule } from './db/db.module.js';
 import { AccountsModule } from './accounts/accounts.module.js';
 import { FilesModule } from './files/files.module.js';
 import { SharesModule } from './shares/shares.module.js';
+import { AlertsModule } from './alerts/alerts.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { HealthController } from './health/health.controller.js';
 
@@ -16,6 +17,7 @@ import { HealthController } from './health/health.controller.js';
     DbModule,
     RedisModule,
     AuthModule,
+    AlertsModule,
     AccountsModule,
     FilesModule,
     SharesModule,

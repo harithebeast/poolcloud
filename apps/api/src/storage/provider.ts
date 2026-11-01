@@ -7,6 +7,12 @@ export interface Quota {
   usage: number;
 }
 
+export interface RemoteBlob {
+  remoteId: string;
+  size: number;
+  createdAt: Date;
+}
+
 export interface ByteRange {
   /** Inclusive offsets. */
   start: number;
@@ -28,6 +34,8 @@ export interface StorageProvider {
   download(remoteId: string, range?: ByteRange): Promise<Readable>;
   /** Idempotent: deleting a missing blob succeeds. */
   delete(remoteId: string): Promise<void>;
+  /** Every blob PoolDrive holds in this account (its app folder). Used by the orphan scan. */
+  listBlobs(): AsyncIterable<RemoteBlob>;
   getQuota(): Promise<Quota>;
   /** Resolves if the account is usable; throws ProviderAuthError / ProviderUnavailableError otherwise. */
   healthCheck(): Promise<void>;

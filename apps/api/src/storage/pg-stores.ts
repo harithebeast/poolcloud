@@ -1,7 +1,8 @@
 import type { AccountStatus } from '@pooldrive/shared';
 import { and, eq, gt, inArray, lte, sql } from 'drizzle-orm';
 import type { Db } from '../db/db.module.js';
-import { quotaReservations, remoteCleanup, storageAccounts } from '../db/schema.js';
+import { fileChunks, quotaReservations, remoteCleanup, storageAccounts } from '../db/schema.js';
+import type { BlobIndex } from './orphan-scanner.js';
 import { availableBytes, type HeadroomPolicy } from './placement.js';
 import type { Quota } from './provider.js';
 import type {
@@ -168,5 +169,25 @@ export class PgCleanupOutbox implements CleanupOutbox {
         nextAttemptAt: sql`now() + ${`${retryInMs} milliseconds`}::interval`,
       })
       .where(eq(remoteCleanup.id, id));
+  }
+}
+
+export class PgBlobIndex implements BlobIndex {
+  constructor(private readonly db: Db) {}
+
+  async chunkRemoteIds(accountId: string): Promise<Set<string>> {
+    const rows = await this.db
+      .select({ id: fileChunks.remoteId })
+      .from(fileChunks)
+      .where(eq(fileChunks.accountId, accountId));
+    return new Set(rows.map((r) => r.id));
+  }
+
+  async pendingCleanupIds(accountId: string): Promise<Set<string>> {
+    const rows = await this.db
+      .select({ id: remoteCleanup.remoteId })
+      .from(remoteCleanup)
+      .where(eq(remoteCleanup.accountId, accountId));
+    return new Set(rows.map((r) => r.id));
   }
 }

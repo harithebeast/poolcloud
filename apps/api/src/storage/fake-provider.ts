@@ -6,7 +6,7 @@ import {
   SizeMismatchError,
   StorageError,
 } from './errors.js';
-import type { ByteRange, Quota, StorageProvider } from './provider.js';
+import type { ByteRange, Quota, RemoteBlob, StorageProvider } from './provider.js';
 
 export interface FakeProviderOptions {
   limit: number;
@@ -18,6 +18,7 @@ export interface FakeProviderOptions {
 export class FakeProvider implements StorageProvider {
   private readonly blobs = new Map<string, Buffer>();
   private readonly allocated = new Set<string>();
+  private readonly createdAt = new Map<string, number>();
   private externalUsage: number;
   private down = false;
   private failUploadAfterBytes: number | null = null;
@@ -87,6 +88,7 @@ export class FakeProvider implements StorageProvider {
     if (received !== size) throw new SizeMismatchError(`expected ${size} bytes, got ${received}`);
     if (this.usage + received > this.limit) throw new StorageError('fake: storage quota exceeded');
     this.blobs.set(remoteId, Buffer.concat(parts));
+    this.createdAt.set(remoteId, Date.now());
     return { size: received };
   }
 
@@ -101,7 +103,32 @@ export class FakeProvider implements StorageProvider {
   delete(remoteId: string): Promise<void> {
     this.assertUp();
     this.blobs.delete(remoteId);
+    this.createdAt.delete(remoteId);
     return Promise.resolve();
+  }
+
+  /** Test hook: pretend a blob was uploaded `ms` milliseconds ago. */
+  ageBlob(remoteId: string, ms: number): void {
+    this.createdAt.set(remoteId, Date.now() - ms);
+  }
+
+  /** Test hook: put a blob in the account that PoolDrive knows nothing about. */
+  plantBlob(remoteId: string, data: Buffer, ageMs = 0): void {
+    this.blobs.set(remoteId, data);
+    this.createdAt.set(remoteId, Date.now() - ageMs);
+  }
+
+  /** Test hook: remove a blob behind PoolDrive's back. */
+  loseBlob(remoteId: string): void {
+    this.blobs.delete(remoteId);
+    this.createdAt.delete(remoteId);
+  }
+
+  async *listBlobs(): AsyncGenerator<RemoteBlob> {
+    this.assertUp();
+    for (const [remoteId, data] of [...this.blobs]) {
+      yield { remoteId, size: data.length, createdAt: new Date(this.createdAt.get(remoteId) ?? 0) };
+    }
   }
 
   getQuota(): Promise<Quota> {

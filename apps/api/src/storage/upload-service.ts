@@ -9,7 +9,7 @@ import {
   type KeyRing,
   type WrappedKey,
 } from './crypto.js';
-import { InsufficientCapacityError } from './errors.js';
+import { InsufficientCapacityError, ProviderAuthError } from './errors.js';
 import {
   MostFreeSpaceStrategy,
   availableBytes,
@@ -63,6 +63,8 @@ export interface UploadServiceDeps {
   keyRing: KeyRing;
   settings: StorageSettings;
   strategy?: PlacementStrategy;
+  /** Called when Google rejects an account's credentials, so it can be taken out of rotation. */
+  onAuthFailure?: (accountId: string, reason: string) => Promise<void>;
 }
 
 const RESERVE_ATTEMPTS = 3;
@@ -184,6 +186,9 @@ export class UploadService {
       await provider.upload(remoteId, body, storedLength);
       await this.deps.accounts.adjustUsage(accountId, storedLength);
       Object.assign(chunk, { size: storedLength, sha256: hash.digest('hex'), nonce });
+    } catch (err) {
+      if (err instanceof ProviderAuthError) await this.deps.onAuthFailure?.(accountId, err.message);
+      throw err;
     } finally {
       await this.deps.accounts.release(reservation.id);
     }

@@ -1,5 +1,5 @@
 import type { Readable } from 'node:stream';
-import type { ByteRange, Quota, StorageProvider } from '../storage/provider.js';
+import type { ByteRange, Quota, RemoteBlob, StorageProvider } from '../storage/provider.js';
 
 export interface AccountCredentials {
   accountId: string;
@@ -64,6 +64,9 @@ class LazyProvider implements StorageProvider {
   }
   async delete(remoteId: string): Promise<void> {
     return (await this.target()).delete(remoteId);
+  }
+  async *listBlobs(): AsyncGenerator<RemoteBlob> {
+    yield* (await this.target()).listBlobs();
   }
   async getQuota(): Promise<Quota> {
     return (await this.target()).getQuota();

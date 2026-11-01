@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { chunkAad, decryptChunk, type KeyRing } from './crypto.js';
-import { FileUnavailableError, IntegrityError, StorageError } from './errors.js';
+import { FileUnavailableError, IntegrityError, ProviderAuthError, StorageError } from './errors.js';
 import type { ByteRange, ProviderResolver } from './provider.js';
 import type { AccountStore } from './stores.js';
 import type { ChunkRecord, StoredFile } from './upload-service.js';
@@ -17,6 +17,8 @@ export class DownloadService {
       accounts: AccountStore;
       providers: ProviderResolver;
       keyRing: KeyRing;
+      /** Called when Google rejects an account's credentials, so it can be taken out of rotation. */
+      onAuthFailure?: (accountId: string, reason: string) => Promise<void>;
     },
   ) {}
 
@@ -44,16 +46,35 @@ export class DownloadService {
     const dek = file.encryption ? this.deps.keyRing.unwrap(file.encryption, file.fileId) : null;
     if (range) {
       const only = file.chunks[0]!;
-      return this.deps.providers(only.accountId).download(only.remoteId, range);
+      return this.fetch(only, range);
     }
-    return Readable.from(this.stream(file, dek), { objectMode: false });
+    // Open the first chunk now: auth, availability and not-found errors then surface before any
+    // response bytes are sent, so the caller can still answer with a proper error status.
+    const ordered = [...file.chunks].sort((a, b) => a.index - b.index);
+    const first = ordered[0] ? await this.fetch(ordered[0]) : undefined;
+    return Readable.from(this.stream(file, dek, ordered, first), { objectMode: false });
   }
 
-  private async *stream(file: StoredFile, dek: Buffer | null): AsyncGenerator<Buffer> {
-    const ordered = [...file.chunks].sort((a, b) => a.index - b.index);
-    for (const chunk of ordered) {
-      const source = await this.deps.providers(chunk.accountId).download(chunk.remoteId);
+  private async *stream(
+    file: StoredFile,
+    dek: Buffer | null,
+    ordered: ChunkRecord[],
+    first: Readable | undefined,
+  ): AsyncGenerator<Buffer> {
+    for (const [i, chunk] of ordered.entries()) {
+      const source = i === 0 && first ? first : await this.fetch(chunk);
       yield* dek ? this.decrypted(file, chunk, dek, source) : this.verified(chunk, source);
+    }
+  }
+
+  private async fetch(chunk: ChunkRecord, range?: ByteRange): Promise<Readable> {
+    try {
+      return await this.deps.providers(chunk.accountId).download(chunk.remoteId, range);
+    } catch (err) {
+      if (err instanceof ProviderAuthError) {
+        await this.deps.onAuthFailure?.(chunk.accountId, err.message);
+      }
+      throw err;
     }
   }
 

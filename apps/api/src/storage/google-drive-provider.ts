@@ -5,7 +5,7 @@ import type { Readable } from 'node:stream';
 import { ProviderUnavailableError, RemoteNotFoundError, StorageError } from './errors.js';
 import { isRetryableGoogleError, mapGoogleError } from './google-errors.js';
 import { ResumableUploader } from './google-resumable.js';
-import type { ByteRange, Quota, StorageProvider } from './provider.js';
+import type { ByteRange, Quota, RemoteBlob, StorageProvider } from './provider.js';
 import { retry, Semaphore, type RetryOptions } from './resilience.js';
 
 export const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.file', 'openid', 'email'];
@@ -96,6 +96,30 @@ export class GoogleDriveProvider implements StorageProvider {
     } catch (err) {
       if (!(err instanceof RemoteNotFoundError)) throw err;
     }
+  }
+
+  async *listBlobs(): AsyncGenerator<RemoteBlob> {
+    let pageToken: string | undefined;
+    do {
+      const res = await this.call(() =>
+        this.drive.files.list({
+          q: `'${this.options.appFolderId}' in parents and trashed = false`,
+          fields: 'nextPageToken, files(id, size, createdTime)',
+          pageSize: 1000,
+          pageToken,
+        }),
+      );
+      for (const f of res.data.files ?? []) {
+        if (f.id) {
+          yield {
+            remoteId: f.id,
+            size: Number(f.size ?? 0),
+            createdAt: new Date(f.createdTime ?? 0),
+          };
+        }
+      }
+      pageToken = res.data.nextPageToken ?? undefined;
+    } while (pageToken);
   }
 
   async getQuota(): Promise<Quota> {

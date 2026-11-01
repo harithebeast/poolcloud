@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
+import { AccountHealth } from '../alerts/alerts.service.js';
 import { AccountsService } from '../accounts/accounts.service.js';
 import { KEY_RING } from '../accounts/accounts.module.js';
 import { DomainErrorsFilter } from '../common/domain-errors.filter.js';
@@ -34,13 +35,21 @@ export function storageSettings(cfg: AppConfig): StorageSettings {
     { provide: PgCleanupOutbox, inject: [DB], useFactory: (db: Db) => new PgCleanupOutbox(db) },
     {
       provide: UploadService,
-      inject: [PgAccountStore, PgCleanupOutbox, AccountsService, KEY_RING, APP_CONFIG],
+      inject: [
+        PgAccountStore,
+        PgCleanupOutbox,
+        AccountsService,
+        KEY_RING,
+        APP_CONFIG,
+        AccountHealth,
+      ],
       useFactory: (
         accounts: PgAccountStore,
         outbox: PgCleanupOutbox,
         svc: AccountsService,
         keyRing: KeyRing,
         cfg: AppConfig,
+        health: AccountHealth,
       ) =>
         new UploadService({
           accounts,
@@ -48,13 +57,24 @@ export function storageSettings(cfg: AppConfig): StorageSettings {
           providers: svc.providers,
           keyRing,
           settings: storageSettings(cfg),
+          onAuthFailure: (id, reason) => health.degrade(id, reason),
         }),
     },
     {
       provide: DownloadService,
-      inject: [PgAccountStore, AccountsService, KEY_RING],
-      useFactory: (accounts: PgAccountStore, svc: AccountsService, keyRing: KeyRing) =>
-        new DownloadService({ accounts, providers: svc.providers, keyRing }),
+      inject: [PgAccountStore, AccountsService, KEY_RING, AccountHealth],
+      useFactory: (
+        accounts: PgAccountStore,
+        svc: AccountsService,
+        keyRing: KeyRing,
+        health: AccountHealth,
+      ) =>
+        new DownloadService({
+          accounts,
+          providers: svc.providers,
+          keyRing,
+          onAuthFailure: (id, reason) => health.degrade(id, reason),
+        }),
     },
     {
       provide: CleanupService,
@@ -64,9 +84,13 @@ export function storageSettings(cfg: AppConfig): StorageSettings {
     },
     {
       provide: QuotaSyncService,
-      inject: [PgAccountStore, AccountsService],
-      useFactory: (accounts: PgAccountStore, svc: AccountsService) =>
-        new QuotaSyncService({ accounts, providers: svc.providers }),
+      inject: [PgAccountStore, AccountsService, AccountHealth],
+      useFactory: (accounts: PgAccountStore, svc: AccountsService, health: AccountHealth) =>
+        new QuotaSyncService({
+          accounts,
+          providers: svc.providers,
+          onDegraded: (id, reason) => health.degrade(id, reason),
+        }),
     },
     {
       provide: FilesService,

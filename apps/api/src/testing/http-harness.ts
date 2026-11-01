@@ -4,6 +4,10 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
 import { loadConfig } from '@pooldrive/shared';
+import { AlertsController } from '../alerts/alerts.controller.js';
+import { AccountHealth, AlertsService } from '../alerts/alerts.service.js';
+import { MaintenanceJobs } from '../jobs/maintenance.js';
+import { OrphanScanner } from '../storage/orphan-scanner.js';
 import { AccountsController } from '../accounts/accounts.controller.js';
 import { AccountsService } from '../accounts/accounts.service.js';
 import { FakeLinkBackend } from '../accounts/link-backend.js';
@@ -22,7 +26,7 @@ import { CleanupService } from '../storage/cleanup-service.js';
 import { KeyRing } from '../storage/crypto.js';
 import { DownloadService } from '../storage/download-service.js';
 import { FakeProvider } from '../storage/fake-provider.js';
-import { PgAccountStore, PgCleanupOutbox } from '../storage/pg-stores.js';
+import { PgAccountStore, PgBlobIndex, PgCleanupOutbox } from '../storage/pg-stores.js';
 import { QuotaSyncService } from '../storage/quota-sync.js';
 import { UploadService, type StorageSettings } from '../storage/upload-service.js';
 import { PublicSharesController, SharesController } from '../shares/shares.controller.js';
@@ -95,18 +99,45 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
   const store = new PgAccountStore(testDb.db);
   const outbox = new PgCleanupOutbox(testDb.db);
   const fs = new FsService(testDb.db);
+  const alerts = new AlertsService(testDb.db);
+  const health = new AccountHealth({ accounts: store, alerts });
   const uploads = new UploadService({
     accounts: store,
     outbox,
     providers: registry.get,
     keyRing,
     settings,
+    onAuthFailure: (id, reason) => health.degrade(id, reason),
   });
-  const downloads = new DownloadService({ accounts: store, providers: registry.get, keyRing });
+  const downloads = new DownloadService({
+    accounts: store,
+    providers: registry.get,
+    keyRing,
+    onAuthFailure: (id, reason) => health.degrade(id, reason),
+  });
   const files = new FilesService({ db: testDb.db, fs, uploads, downloads });
   const shares = new SharesService({ db: testDb.db, fs, secret: cfg.SESSION_SECRET });
   const cleanup = new CleanupService({ outbox, providers: registry.get });
-  const quotaSync = new QuotaSyncService({ accounts: store, providers: registry.get });
+  const quotaSync = new QuotaSyncService({
+    accounts: store,
+    providers: registry.get,
+    onDegraded: (id, reason) => health.degrade(id, reason),
+  });
+  const orphans = new OrphanScanner({
+    accounts: store,
+    providers: registry.get,
+    index: new PgBlobIndex(testDb.db),
+  });
+  const jobs = new MaintenanceJobs({
+    db: testDb.db,
+    quotaSync,
+    cleanup,
+    fs,
+    auth,
+    alerts,
+    orphans,
+    retentionDays: 30,
+  });
 
   const mod = await Test.createTestingModule({
     controllers: [
@@ -115,6 +146,7 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
       FilesController,
       SharesController,
       PublicSharesController,
+      AlertsController,
     ],
     providers: [
       { provide: AuthService, useValue: auth },
@@ -122,6 +154,7 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
       { provide: FsService, useValue: fs },
       { provide: FilesService, useValue: files },
       { provide: SharesService, useValue: shares },
+      { provide: AlertsService, useValue: alerts },
       {
         provide: LoginThrottle,
         useValue: new LoginThrottle(new MemoryCounterStore(), options.throttleMax ?? 1000, 60),
@@ -207,6 +240,9 @@ export async function createHarness(baseUrl: string, options: HarnessOptions = {
     uploads,
     cleanup,
     shares,
+    alerts,
+    jobs,
+    orphans,
     quotaSync,
     store,
     providers,
