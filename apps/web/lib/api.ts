@@ -85,6 +85,12 @@ export const contentUrl = (id: string, download = false) =>
 /** Friendly text for the failures a user can actually act on. */
 export function describeError(err: unknown): string {
   if (err instanceof ApiError) {
+    // Validation errors list what is wrong with each field; show that instead of the generic title.
+    const issues = err.details.issues;
+    if (Array.isArray(issues) && issues.length > 0) {
+      const first = issues[0] as { message?: unknown };
+      if (typeof first.message === 'string') return first.message;
+    }
     switch (err.code) {
       case 'name_conflict':
         return err.message;

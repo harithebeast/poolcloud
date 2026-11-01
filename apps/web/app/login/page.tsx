@@ -42,6 +42,8 @@ export default function LoginPage() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    if (setup && password.length < 12)
+      return setError('Use at least 12 characters for the password.');
     if (setup && password !== confirm) return setError('The passwords do not match.');
     setBusy(true);
     try {
