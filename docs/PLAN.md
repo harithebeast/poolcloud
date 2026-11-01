@@ -45,7 +45,7 @@ Indexes (documented again in `docs/architecture.md`): `nodes(owner_id,parent_id,
 ## 3. API outline (`/api/v1`)
 
 Auth: `POST /auth/setup` (first run), `/auth/login`, `/auth/logout`, `GET /auth/me`.
-Accounts: `GET /accounts`, `GET /accounts/oauth/start`, `GET /accounts/oauth/callback`, `POST /accounts/:id/reauthorize`, `DELETE /accounts/:id` (migration job), `GET /storage/usage`.
+Accounts: `GET /accounts`, `POST /accounts/google/start` (also re-authorise, with `accountId`), `GET /accounts/google/callback`, `DELETE /accounts/:id` (migration job), `GET /storage/usage`.
 FS: `GET /nodes?parent=&cursor=&sort=`, `POST /folders`, `PATCH /nodes/:id` (rename/move), `DELETE /nodes/:id` (trash), `POST /nodes/:id/restore`, `DELETE /trash/:id` (purge), `GET /search?q=`.
 Upload: `POST /uploads`, `PUT /uploads/:id/parts/:n`, `GET /uploads/:id` (resume state), `POST /uploads/:id/complete`, `DELETE /uploads/:id`.
 Download: `GET /nodes/:id/content` (Range), `GET /nodes/:id/preview`.
